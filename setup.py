@@ -24,13 +24,13 @@ def get_long_description():
     return long_description
 
 
-setup(name='langid',
-    version='0.1.0',  # get_version('py3langid'),
-    description="langid.py is a standalone Language Identification (LangID) tool.",
+setup(name='py3langid',
+    version=get_version('py3langid'),
+    description="py3langid is a fork of the standalone Language Identification tool langid.py.",
     long_description=get_long_description(),
     python_requires='>=3.6',
     classifiers=[
-        'Development Status :: 5 - Production/Stable',
+        'Development Status :: 3 - Alpha',
         'Intended Audience :: Developers',
         'Intended Audience :: Information Technology',
         'Intended Audience :: Science/Research',
@@ -49,7 +49,7 @@ setup(name='langid',
     author_email='barbaresi@bbaw.de',
     url='https://github.com/adbar/langid.py',
     license='BSD',
-    packages=['langid'],
+    packages=['py3langid'],
     include_package_data=True,
     install_requires=[
         'numpy',

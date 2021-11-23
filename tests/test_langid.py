@@ -1,4 +1,4 @@
-import langid
+import py3langid as langid
 
 
 def test_langid():
