@@ -1,6 +1,23 @@
-================
-``langid.py`` readme
-================
+=============
+``py3langid``
+=============
+
+
+Changes in this fork
+--------------------
+
+``py3langid`` is a fork of the standalone language identification tool ``langid.py`` by Marco Lui.
+
+Drop in replacement: ``import py3langid as langid``.
+
+The classification functions have been modernized, thanks to implementation changes language detection with Python (``langid.classify``) is currently 2.5x faster.
+
+The readme below is provided for reference, for now only the classification functions are tested and maintained.
+
+Original license: BSD-2-Clause.
+Fork license: BSD-3-Clause.
+
+
 
 Introduction
 ------------
@@ -15,9 +32,9 @@ The design principles are as follows:
 4. Single .py file with minimal dependencies
 5. Deployable as a web service
 
-All that is required to run ``langid.py`` is >= Python 2.7 and numpy.  
-The main script ``langid/langid.py`` is cross-compatible with both Python2 and
-Python3, but the accompanying training tools are still Python2-only.
+All that is required to run ``langid.py`` is Python >= 3.6 and numpy. 
+
+The accompanying training tools are still Python2-only.
 
 ``langid.py`` is WSGI-compliant.  ``langid.py`` will use ``fapws3`` as a web server if 
 available, and default to ``wsgiref.simple_server`` otherwise.
@@ -311,10 +328,8 @@ It is also possible to edit ``langid.py`` directly to embed the new model string
 
 Read more
 ---------
-``langid.py`` is based on our published research. [1] describes the LD feature selection technique in detail,
-and [2] provides more detail about the module ``langid.py`` itself. [3] compares the speed of ``langid.py``
-to Google's Chrome CLD2, as well as my own pure-C implementation and the authors' implementation on specialized
-hardware.
+``langid.py`` is based on published research. [1] describes the LD feature selection technique in detail,
+and [2] provides more detail about the module ``langid.py`` itself.
 
 [1] Lui, Marco and Timothy Baldwin (2011) Cross-domain Feature Selection for Language Identification, 
 In Proceedings of the Fifth International Joint Conference on Natural Language Processing (IJCNLP 2011), 
@@ -323,58 +338,3 @@ Chiang Mai, Thailand, pp. 553—561. Available from http://www.aclweb.org/anthol
 [2] Lui, Marco and Timothy Baldwin (2012) langid.py: An Off-the-shelf Language Identification Tool, 
 In Proceedings of the 50th Annual Meeting of the Association for Computational Linguistics (ACL 2012), 
 Demo Session, Jeju, Republic of Korea. Available from www.aclweb.org/anthology/P12-3005
-
-[3] Kenneth Heafield and Rohan Kshirsagar and Santiago Barona (2015) Language Identification and Modeling in Specialized Hardware,
-In Proceedings of the 53rd Annual Meeting of the Association for Computational Linguistics and the 7th International Joint 
-Conference on Natural Language Processing (Volume 2: Short Papers).
-Available from http://aclweb.org/anthology/P15-2063
-
-Contact
--------
-Marco Lui <saffsd@gmail.com>
-
-I appreciate any feedback, and I'm particularly interested in hearing about 
-places where ``langid.py`` is being used. I would love to know more about 
-situations where you have found that ``langid.py`` works well, and about
-any shortcomings you may have found.
-
-Acknowledgements
-----------------
-Thanks to aitzol for help with packaging ``langid.py`` for PyPI.
-Thanks to pquentin for suggestions and improvements to packaging.
-
-Related Implementations
------------------------
-Dawid Weiss has ported ``langid.py`` to Java, with a particular focus on
-speed and memory use. Available from https://github.com/carrotsearch/langid-java
-
-I have written a Pure-C version of ``langid.py``, which an external evaluation (see `Read more`)
-has found to be up to 20x as fast as the pure Python implementation here. 
-Available from https://github.com/saffsd/langid.c
-
-I have also written a JavaScript version of ``langid.py`` which runs entirely in the browser.
-Available from https://github.com/saffsd/langid.js
-
-Changelog
----------
-v1.0: 
-  * Initial release
-
-v1.1:
-  * Reorganized internals to implement a LanguageIdentifier class
-
-v1.1.2:
-  * Added a 'langid' entry point
-
-v1.1.3:
-  * Made `classify` and `rank` return Python data types rather than numpy ones
-
-v1.1.4:
-  * Added set_languages to __init__.py, fixing #10 (and properly fixing #8)
-
-v1.1.5:
-  * remove dev tag
-  * add PyPi classifiers, fixing #34 (thanks to pquentin)
-
-v1.1.6:
-  * make nb_numfeats an int, fixes #46, thanks to @remibolcom

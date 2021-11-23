@@ -103,16 +103,3 @@ ENV/
 
 # IDE settings
 .vscode/
-
-# lists
-simplemma/lists/
-
-# Not ready yet
-docs/
-AUTHORS.rst
-CONTRIBUTING.rst
-Makefile
-.github/
-
-# eval
-UD/
