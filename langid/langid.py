@@ -57,7 +57,7 @@ import logging
 import numpy as np
 from wsgiref.simple_server import make_server
 from wsgiref.util import shift_path_info
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 try:
   from urllib.parse import parse_qs
@@ -250,6 +250,7 @@ class LanguageIdentifier(object):
     """
     Map an instance into the feature space of the trained model.
     """
+    # convert to binary if it isn't already the case
     if (sys.version_info > (3, 0)):
       # Python3
       if isinstance(text,str):
@@ -258,28 +259,25 @@ class LanguageIdentifier(object):
       # Python2
       if isinstance(text,unicode):
         text = text.encode('utf8')
-      # Convert the text to a sequence of ascii values
-      text = map(ord, text)
 
     arr = np.zeros((self.nb_numfeats,), dtype='uint32')
 
+    # Convert the text to a sequence of ascii values and
     # Count the number of times we enter each state
     state = 0
-    statecount = defaultdict(int)
-    for letter in text:
+    indexes = []
+    for letter in list(text):
       state = self.tk_nextmove[(state << 8) + letter]
-      statecount[state] += 1
-
+      indexes.extend(self.tk_output.get(state, []))
     # Update all the productions corresponding to the state
-    for state, value in statecount.items():
-      for index in self.tk_output.get(state, []):
-        arr[index] += value
+    for index, value in Counter(indexes).items():
+      arr[index] = value
 
     return arr
 
   def nb_classprobs(self, fv):
     # compute the partial log-probability of the document given each class
-    pdc = np.dot(fv,self.nb_ptc)
+    pdc = np.dot(fv, self.nb_ptc)
     # compute the partial log-probability of the document in each class
     return pdc + self.nb_pc
 
@@ -290,7 +288,7 @@ class LanguageIdentifier(object):
     fv = self.instance2fv(text)
     probs = self.norm_probs(self.nb_classprobs(fv))
     cl = np.argmax(probs)
-    return str(self.nb_classes[cl]), float(probs[cl])
+    return self.nb_classes[cl], probs[cl]
 
   def rank(self, text):
     """
