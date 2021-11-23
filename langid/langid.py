@@ -31,12 +31,31 @@ The views and conclusions contained in the software and documentation are those 
 authors and should not be interpreted as representing official policies, either expressed
 or implied, of the copyright holder.
 """
-from __future__ import print_function
+
+import argparse
+import base64
+import bz2
+import json
+import logging
+from wsgiref.simple_server import make_server
+from wsgiref.util import shift_path_info
+from collections import Counter
+
+from urllib.parse import parse_qs
+
 try:
-  # if running on Python2, mask input() with raw_input()
-  input = raw_input
-except NameError:
-  pass
+  from cPickle import loads
+except ImportError:
+  from pickle import loads
+
+import numpy as np
+
+from .model import model
+
+logger = logging.getLogger(__name__)
+
+# Convenience methods defined below will initialize this when first called.
+identifier = None
 
 # Defaults for inbuilt server
 HOST = None #leave as none for auto-detect
@@ -48,34 +67,6 @@ NORM_PROBS = False # Normalize output probabilities.
 # affect the relative ordering of the predicted classes. It can be 
 # re-enabled at runtime - see the readme.
 
-import base64
-import bz2
-import json
-import optparse
-import sys
-import logging
-import numpy as np
-from wsgiref.simple_server import make_server
-from wsgiref.util import shift_path_info
-from collections import Counter, defaultdict
-
-try:
-  from urllib.parse import parse_qs
-except ImportError:
-  from urlparse import parse_qs
-
-try:
-  from cPickle import loads
-except ImportError:
-  from pickle import loads
-
-
-from .model import model
-
-logger = logging.getLogger(__name__)
-
-# Convenience methods defined below will initialize this when first called.
-identifier = None
 
 def set_languages(langs=None):
   """
@@ -164,7 +155,7 @@ def load_model(path = None):
   else:
     identifier = LanguageIdentifier.from_modelpath(path)
 
-class LanguageIdentifier(object):
+class LanguageIdentifier:
   """
   This class implements the actual language identifier.
   """
@@ -182,8 +173,8 @@ class LanguageIdentifier(object):
 
   @classmethod
   def from_modelpath(cls, path, *args, **kwargs):
-    with open(path) as f:
-      return cls.from_modelstring(f.read().encode(), *args, **kwargs)
+    with open(path, 'rb') as f:
+      return cls.from_modelstring(f.read(), *args, **kwargs)
 
   def __init__(self, nb_ptc, nb_pc, nb_numfeats, nb_classes, tk_nextmove, tk_output,
                norm_probs = NORM_PROBS):
@@ -208,6 +199,7 @@ class LanguageIdentifier(object):
         # Windows this causes a RuntimeWarning, so we explicitly 
         # suppress it.
         with np.errstate(over='ignore'):
+          # old: pd = (1/np.exp(pd[None,:] - pd[:,None]).sum(1))
           pd_exp = np.exp(pd)
           pd = pd_exp / pd_exp.sum()
         return pd
@@ -251,14 +243,8 @@ class LanguageIdentifier(object):
     Map an instance into the feature space of the trained model.
     """
     # convert to binary if it isn't already the case
-    if (sys.version_info > (3, 0)):
-      # Python3
-      if isinstance(text,str):
-        text = text.encode('utf8')
-    else:
-      # Python2
-      if isinstance(text,unicode):
-        text = text.encode('utf8')
+    if isinstance(text,str):
+      text = text.encode('utf8')
 
     arr = np.zeros((self.nb_numfeats,), dtype='uint32')
 
@@ -455,21 +441,21 @@ def application(environ, start_response):
 def main():
   global identifier
 
-  parser = optparse.OptionParser()
-  parser.add_option('-s','--serve',action='store_true', default=False, dest='serve', help='launch web service')
-  parser.add_option('--host', default=HOST, dest='host', help='host/ip to bind to')
-  parser.add_option('--port', default=PORT, dest='port', help='port to listen on')
-  parser.add_option('-v', action='count', dest='verbosity', help='increase verbosity (repeat for greater effect)')
-  parser.add_option('-m', dest='model', help='load model from file')
-  parser.add_option('-l', '--langs', dest='langs', help='comma-separated set of target ISO639 language codes (e.g en,de)')
-  parser.add_option('-r', '--remote',action="store_true", default=False, help='auto-detect IP address for remote access')
-  parser.add_option('-b', '--batch', action="store_true", default=False, help='specify a list of files on the command line')
-  parser.add_option('--demo',action="store_true", default=False, help='launch an in-browser demo application')
-  parser.add_option('-d', '--dist', action='store_true', default=False, help='show full distribution over languages')
-  parser.add_option('-u', '--url', help='langid of URL')
-  parser.add_option('--line', action="store_true", default=False, help='process pipes line-by-line rather than as a document')
-  parser.add_option('-n', '--normalize', action='store_true', default=False, help='normalize confidence scores to probability values')
-  options, args = parser.parse_args()
+  parser = argparse.ArgumentParser()
+  parser.add_argument('-s','--serve', action='store_true', default=False, dest='serve', help='launch web service')
+  parser.add_argument('--host', default=HOST, dest='host', help='host/ip to bind to')
+  parser.add_argument('--port', default=PORT, dest='port', help='port to listen on')
+  parser.add_argument('-v', action='count', dest='verbosity', help='increase verbosity (repeat for greater effect)')
+  parser.add_argument('-m', dest='model', help='load model from file')
+  parser.add_argument('-l', '--langs', dest='langs', help='comma-separated set of target ISO639 language codes (e.g en,de)')
+  parser.add_argument('-r', '--remote',action="store_true", default=False, help='auto-detect IP address for remote access')
+  parser.add_argument('-b', '--batch', action="store_true", default=False, help='specify a list of files on the command line')
+  parser.add_argument('--demo', action="store_true", default=False, help='launch an in-browser demo application')
+  parser.add_argument('-d', '--dist', action='store_true', default=False, help='show full distribution over languages')
+  parser.add_argument('-u', '--url', help='langid of URL')
+  parser.add_argument('--line', action="store_true", default=False, help='process pipes line-by-line rather than as a document')
+  parser.add_argument('-n', '--normalize', action='store_true', default=False, help='normalize confidence scores to probability values')
+  options = parser.parse_args()
 
   if options.verbosity:
     logging.basicConfig(level=max((5-options.verbosity)*10, 0))
@@ -504,11 +490,7 @@ def main():
 
   if options.url:
     import contextlib
-    import urllib.request, urllib.error, urllib.parse
-    try: 
-        from urllib.request import urlopen
-    except ImportError:
-        from urllib2 import urlopen
+    from urllib.request import urlopen
     with contextlib.closing(urlopen(options.url)) as url:
       text = url.read()
       output = _process(text)
