@@ -61,7 +61,7 @@ class Scanner(object):
     # tk_output is a mapping from state to a list of feature indices.
     # because of the way the scanner class is written, it needs a mapping
     # from state to the feature itself. We rebuild this here.
-    tk_output_f = dict( (k,[feats[i] for i in v]) for k,v in tk_output.iteritems() )
+    tk_output_f = {k: [feats[i] for i in v] for k,v in tk_output.iteritems()}
     scanner = cls.__new__(cls)
     scanner.__setstate__((tk_nextmove, tk_output_f))
     return scanner
@@ -173,8 +173,7 @@ class Scanner(object):
     state = 0
     for letter in map(ord,string):
       state = self.nm_arr[(state << 8) + letter]
-      for key in self.output.get(state, []):
-        yield key
+      yield from self.output.get(state, [])
 
 def build_scanner(features):
   """
@@ -209,7 +208,7 @@ def index(seq):
   @param seq the sequence to index
   @returns a dictionary from item to position in the sequence
   """
-  return dict((k,v) for (v,k) in enumerate(seq))
+  return {k: v for (v,k) in enumerate(seq)}
 
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()

@@ -83,16 +83,16 @@ class CorpusIndexer(object):
       self.lang_index = defaultdict(Enumerator())
     else:
       # pre-specified lang set
-      self.lang_index = dict((k,v) for v,k in enumerate(langs))
+      self.lang_index = {k: v for v,k in enumerate(langs)}
 
     if domains is None:
       self.domain_index = defaultdict(Enumerator())
     else:
       # pre-specified domain set
-      self.domain_index = dict((k,v) for v,k in enumerate(domains))
+      self.domain_index = {k: v for v,k in enumerate(domains)}
 
     self.coverage_index = defaultdict(set)
-    self.items = list()
+    self.items = []
 
     if os.path.isdir(root):
       # root supplied was the root of a directory structure
@@ -173,22 +173,25 @@ class CorpusIndexer(object):
 
   def prune_min_domain(self, min_domain):
     # prune files for all languages that do not occur in at least min_domain 
-     
+
     # Work out which languages to reject as they are not present in at least 
     # the required number of domains
     lang_domain_count = defaultdict(int)
     for langs in self.coverage_index.values():
       for lang in langs:
         lang_domain_count[lang] += 1
-    reject_langs = set( l for l in lang_domain_count if lang_domain_count[l] < min_domain)
+    reject_langs = {
+        l
+        for l in lang_domain_count if lang_domain_count[l] < min_domain
+    }
 
     # Remove the languages from the indexer
     if reject_langs:
       #print "reject (<{0} domains): {1}".format(min_domain, sorted(reject_langs))
-      reject_ids = set(self.lang_index[l] for l in reject_langs)
-    
+      reject_ids = {self.lang_index[l] for l in reject_langs}
+
       new_lang_index = defaultdict(Enumerator())
-      lm = dict()
+      lm = {}
       for k,v in self.lang_index.items():
         if v not in reject_ids:
           new_id = new_lang_index[k]

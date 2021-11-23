@@ -80,7 +80,7 @@ import numpy
 def read_weights(path):
   with open(path) as f:
     reader = csv.reader(f)
-    retval = dict()
+    retval = {}
     for row in reader:
       key = eval(row[0])
       #val = numpy.array( map(float,row[1:]) )
@@ -116,7 +116,7 @@ def index(seq):
   @param seq the sequence to index
   @returns a dictionary from item to position in the sequence
   """
-  return dict((k,v) for (v,k) in enumerate(seq))
+  return {k: v for (v,k) in enumerate(seq)}
 
       
 

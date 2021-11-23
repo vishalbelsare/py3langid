@@ -271,18 +271,16 @@ class LanguageIdentifier(object):
       statecount[state] += 1
 
     # Update all the productions corresponding to the state
-    for state in statecount:
+    for state, value in statecount.items():
       for index in self.tk_output.get(state, []):
-        arr[index] += statecount[state]
+        arr[index] += value
 
     return arr
 
   def nb_classprobs(self, fv):
     # compute the partial log-probability of the document given each class
     pdc = np.dot(fv,self.nb_ptc)
-    # compute the partial log-probability of the document in each class
-    pd = pdc + self.nb_pc
-    return pd
+    return pdc + self.nb_pc
 
   def classify(self, text):
     """
@@ -394,7 +392,7 @@ def application(environ, start_response):
     # Catch shift_path_info's failure to handle empty paths properly
     path = ''
 
-  if path == 'detect' or path == 'rank':
+  if path in {'detect', 'rank'}:
     data = None
 
     # Extract the data component from different access methods
@@ -445,7 +443,7 @@ def application(environ, start_response):
     headers = [('Content-type', 'text/html; charset=utf-8')] # HTTP Headers
     start_response(status, headers)
     return [query_form.format(**environ)]
-    
+
   else:
     # Incorrect URL
     status = '404 Not Found'
@@ -502,12 +500,7 @@ def main():
     """
     Set up a local function to do output, configured according to our settings.
     """
-    if options.dist:
-      payload = identifier.rank(text)
-    else:
-      payload = identifier.classify(text)
-
-    return payload
+    return identifier.rank(text) if options.dist else identifier.classify(text)
 
 
   if options.url:
@@ -567,12 +560,8 @@ def main():
     def generate_paths():
       for line in sys.stdin:
         path = line.strip()
-        if path:
-          if os.path.isfile(path):
-            yield path
-          else:
-            # No such path
-            pass
+        if path and os.path.isfile(path):
+          yield path
 
     writer = csv.writer(sys.stdout)
     pool = mp.Pool()

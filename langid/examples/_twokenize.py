@@ -294,6 +294,5 @@ def normalizeTextForTagger(text):
 # So the tokens you get back may not exactly correspond to
 # substrings of the original text.
 def tokenizeRawTweetText(text):
-    tokens = tokenize(normalizeTextForTagger(text))
-    return tokens
+    return tokenize(normalizeTextForTagger(text))
 
