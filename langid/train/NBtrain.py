@@ -251,13 +251,10 @@ def learn_nb_params(items, num_langs, tk_nextmove, tk_output, temp_path, args):
 
 @atexit.register
 def cleanup():
-  global outdir 
+  global outdir
   try:
     shutil.rmtree(outdir)
-  except NameError:
-    pass
-  except OSError:
-    # sometimes we try to clean up files that are not there
+  except (NameError, OSError):
     pass
 
 if __name__ == "__main__":

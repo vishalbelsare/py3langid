@@ -68,7 +68,7 @@ class NGramTokenizer(object):
     max_order = self.max_order
     t = tee(seq, max_order)
     for i in xrange(max_order):
-      for j in xrange(i):
+      for _ in xrange(i):
         # advance iterators, ignoring result
         t[i].next()
     while True:
@@ -91,7 +91,7 @@ class WordNGramTokenizer(object):
     max_order = self.max_order
     t = tee(_seq, max_order)
     for i in xrange(max_order):
-      for j in xrange(i):
+      for _ in xrange(i):
         # advance iterators, ignoring result
         t[i].next()
     while True:
@@ -110,11 +110,8 @@ def cleanup():
     if not complete:
       for d in b_dirs:
         shutil.rmtree(d)
-  except NameError:
+  except (NameError, OSError):
     # Failed before globals defined, nothing to clean
-    pass
-  except OSError:
-    # sometimes we try to clean up files that are not there
     pass
 
 def setup_pass_tokenize(tokenizer, b_dirs, sample_count, sample_size, term_freq, line_level):
@@ -137,7 +134,7 @@ def pass_tokenize(chunk_items):
   than by document.
   """
   global __maxorder, __b_dirs, __tokenizer, __sample_count, __sample_size, __term_freq, __line_level
-  
+
   extractor = __tokenizer
   term_lng_freq = defaultdict(lambda: defaultdict(int))
   term_dom_freq = defaultdict(lambda: defaultdict(int))
@@ -152,12 +149,7 @@ def pass_tokenize(chunk_items):
         offsets = random.sample(xrange(poss), count)
         for offset in offsets:
           tokens = extractor(text[offset: offset+__sample_size])
-          if args.__term_freq:
-            # Term Frequency
-            tokenset = Counter(tokens)
-          else:
-            # Document Frequency
-            tokenset = Counter(set(tokens))
+          tokenset = Counter(tokens) if args.__term_freq else Counter(set(tokens))
           for token, count in tokenset.iteritems():
             term_lng_freq[token][lang_id] += count
             term_dom_freq[token][domain_id] += count
@@ -165,25 +157,15 @@ def pass_tokenize(chunk_items):
         # line-model - each line in a file should be interpreted as a document
         for line in f:
           tokens = extractor(line)
-          if __term_freq:
-            # Term Frequency
-            tokenset = Counter(tokens)
-          else:
-            # Document Frequency
-            tokenset = Counter(set(tokens))
+          tokenset = Counter(tokens) if __term_freq else Counter(set(tokens))
           for token, count in tokenset.iteritems():
             term_lng_freq[token][lang_id] += count
             term_dom_freq[token][domain_id] += count
-          
+
       else:
         # whole-document tokenization
         tokens = extractor(f.read())
-        if __term_freq:
-          # Term Frequency
-          tokenset = Counter(tokens)
-        else:
-          # Document Frequency
-          tokenset = Counter(set(tokens))
+        tokenset = Counter(tokens) if __term_freq else Counter(set(tokens))
         for token, count in tokenset.iteritems():
           term_lng_freq[token][lang_id] += count
           term_dom_freq[token][domain_id] += count

@@ -108,10 +108,10 @@ def ngram_select(doc_count, max_order=MAX_NGRAM_ORDER, tokens_per_order=TOKENS_P
   # Work out the set of features to compute IG
   features = set()
   for i in range(1, max_order+1):
-    d = dict( (k, doc_count[k]) for k in doc_count if len(k) == i)
+    d = {k: doc_count[k] for k in doc_count if len(k) == i}
     features |= set(sorted(d, key=d.get, reverse=True)[:tokens_per_order])
   features = sorted(features)
-  
+
   return features
 
 
