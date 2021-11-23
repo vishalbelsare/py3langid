@@ -110,6 +110,7 @@ def cleanup():
     if not complete:
       for d in b_dirs:
         shutil.rmtree(d)
+  # sometimes we try to clean up files that are not there
   except (NameError, OSError):
     # Failed before globals defined, nothing to clean
     pass
@@ -149,6 +150,7 @@ def pass_tokenize(chunk_items):
         offsets = random.sample(xrange(poss), count)
         for offset in offsets:
           tokens = extractor(text[offset: offset+__sample_size])
+          # Term Frequency or Document Frequency
           tokenset = Counter(tokens) if args.__term_freq else Counter(set(tokens))
           for token, count in tokenset.iteritems():
             term_lng_freq[token][lang_id] += count

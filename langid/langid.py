@@ -280,6 +280,7 @@ class LanguageIdentifier(object):
   def nb_classprobs(self, fv):
     # compute the partial log-probability of the document given each class
     pdc = np.dot(fv,self.nb_ptc)
+    # compute the partial log-probability of the document in each class
     return pdc + self.nb_pc
 
   def classify(self, text):

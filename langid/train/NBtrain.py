@@ -254,6 +254,7 @@ def cleanup():
   global outdir
   try:
     shutil.rmtree(outdir)
+  # sometimes we try to clean up files that are not there
   except (NameError, OSError):
     pass
 
