@@ -8,15 +8,17 @@ Changes in this fork
 
 ``py3langid`` is a fork of the standalone language identification tool ``langid.py`` by Marco Lui.
 
-Drop in replacement: ``import py3langid as langid``.
+To use it as a drop-in replacement:
+
+1. ``pip3 install py3langid`` (or ``pip`` where applicable)
+2. ``import py3langid as langid``
 
 The classification functions have been modernized, thanks to implementation changes language detection with Python (``langid.classify``) is currently 2.5x faster.
 
-The readme below is provided for reference, for now only the classification functions are tested and maintained.
+The readme below is provided for reference, only the classification functions are tested and maintained for now.
 
 Original license: BSD-2-Clause.
 Fork license: BSD-3-Clause.
-
 
 
 Introduction
@@ -181,6 +183,7 @@ When using ``langid.py`` as a library, the set_languages method can be used to c
   >>> langid.classify("I do not speak english")
   ('en', 0.99176190378750373)
 
+
 Batch Mode
 ----------
 
@@ -193,6 +196,7 @@ In batch mode, ``langid.py`` uses ``multiprocessing`` to invoke multiple instanc
 the classifier, utilizing all available CPUs to classify documents in parallel. 
 
 .. Probability Normalization
+
 
 Probability Normalization
 -------------------------
@@ -219,115 +223,13 @@ probability normalization in library use, the user must instantiate their own
 
 Training a model
 ----------------
-We provide a full set of training tools to train a model for ``langid.py`` 
-on user-supplied data.  The system is parallelized to fully utilize modern 
-multiprocessor machines, using a sharding technique similar to MapReduce to 
-allow parallelization while running in constant memory.
 
-The full training can be performed using the tool ``train.py``. For 
-research purposes, the process has been broken down into indiviual steps, 
-and command-line drivers for each step are provided. This allows the user 
-to inspect the intermediates produced, and also allows for some parameter 
-tuning without repeating some of the more expensive steps in the 
-computation. By far the most expensive step is the computation of 
-information gain, which will make up more than 90% of the total computation 
-time.
-
-The tools are:
-
-1. index.py  - index a corpus. Produce a list of file, corpus, language pairs.
-2. tokenize.py - take an index and tokenize the corresponding files
-3. DFfeatureselect.py - choose features by document frequency
-4. IGweight.py - compute the IG weights for language and for domain
-5. LDfeatureselect.py - take the IG weights and use them to select a feature set
-6. scanner.py - build a scanner on the basis of a feature set
-7. NBtrain.py - learn NB parameters using an indexed corpus and a scanner
-
-The tools can be found in ``langid/train`` subfolder. 
-
-Each tool can be called with ``--help`` as the only parameter to provide an overview of the 
-functionality. 
-
-To train a model, we require multiple corpora of monolingual documents. Each document should 
-be a single file, and each file should be in a 2-deep folder hierarchy, with language nested 
-within domain. For example, we may have a number of English files:
-
-    ./corpus/domain1/en/File1.txt
-    ./corpus/domainX/en/001-file.xml
-
-To use default settings, very few parameters need to be provided. Given a corpus in the format
-described above at ``./corpus``, the following is an example set of invocations that would
-result in a model being trained, with a brief description of what each step 
-does.
-
-To build a list of training documents::
-
-    python index.py ./corpus
-
-This will create a directory ``corpus.model``, and produces a list of paths to documents in the
-corpus, with their associated language and domain.
-
-We then tokenize the files using the default byte n-gram tokenizer::
-
-    python tokenize.py corpus.model
-
-This runs each file through the tokenizer, tabulating the frequency of each token according
-to language and domain. This information is distributed into buckets according to a hash
-of the token, such that all the counts for any given token will be in the same bucket.
-
-The next step is to identify the most frequent tokens by document 
-frequency::
-
-    python DFfeatureselect.py corpus.model
-
-This sums up the frequency counts per token in each bucket, and produces a list of the highest-df
-tokens for use in the IG calculation stage. Note that this implementation of DFfeatureselect
-assumes byte n-gram tokenization, and will thus select a fixed number of features per ngram order.
-If tokenization is replaced with a word-based tokenizer, this should be replaced accordingly.
-
-We then compute the IG weights of each of the top features by DF. This is computed separately
-for domain and for language::
-
-    python IGweight.py -d corpus.model
-    python IGweight.py -lb corpus.model
-
-Based on the IG weights, we compute the LD score for each token::
-
-    python LDfeatureselect.py corpus.model
-
-This produces the final list of LD features to use for building the NB model.
-
-We then assemble the scanner::
-
-    python scanner.py corpus.model
-
-The scanner is a compiled DFA over the set of features that can be used to 
-count the number of times each of the features occurs in a document in a 
-single pass over the document. This DFA is built using Aho-Corasick string 
-matching.
-
-Finally, we learn the actual Naive Bayes parameters::
-
-    python NBtrain.py corpus.model
-
-This performs a second pass over the entire corpus, tokenizing it with the scanner from the previous
-step, and computing the Naive Bayes parameters P(C) and p(t|C). It then compiles the parameters
-and the scanner into a model compatible with ``langid.py``. 
-
-In this example, the final model will be at the following path::
-
-  ./corpus.model/model
-
-This model can then be used in ``langid.py`` by invoking it with the ``-m`` command-line option as 
-follows:
-
-    python langid.py -m ./corpus.model/model
-
-It is also possible to edit ``langid.py`` directly to embed the new model string.
+So far Python 2.7 only, see the `original instructions <https://github.com/saffsd/langid.py#training-a-model>`_.
 
 
 Read more
 ---------
+
 ``langid.py`` is based on published research. [1] describes the LD feature selection technique in detail,
 and [2] provides more detail about the module ``langid.py`` itself.
 
