@@ -8,7 +8,9 @@ include README.rst
 
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
-include tests/
+
+graft py3langid/data/
+graft tests/
 
 # recursive-include conf.py Makefile make.bat *.jpg *.png *.gif
 # recursive-include docs *.rst
