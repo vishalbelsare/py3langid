@@ -52,6 +52,7 @@ setup(name='py3langid',
     install_requires=[
         'numpy',
     ],
+    package_data={'py3langid': ['data/model.plzma']},
     entry_points= {
       'console_scripts': ['langid = langid.langid:main'],
     },

@@ -14,20 +14,23 @@ import base64
 import bz2
 import json
 import logging
-from wsgiref.simple_server import make_server
-from wsgiref.util import shift_path_info
-from collections import Counter
+import lzma
 
+from collections import Counter
+from pathlib import Path
 from urllib.parse import parse_qs
 
+from wsgiref.simple_server import make_server
+from wsgiref.util import shift_path_info
+
+import numpy as np
+
+import _pickle as cpickle
 try:
     from cPickle import loads
 except ImportError:
     from pickle import loads
 
-import numpy as np
-
-from .model import model
 
 logger = logging.getLogger(__name__)
 
@@ -132,7 +135,7 @@ def load_model(path=None):
     global identifier
     logger.info('initializing identifier')
     if path is None:
-        identifier = LanguageIdentifier.from_modelstring(model)
+        identifier = LanguageIdentifier.from_pickled_model('data/model.plzma')
     else:
         identifier = LanguageIdentifier.from_modelpath(path)
 
@@ -142,8 +145,25 @@ class LanguageIdentifier:
     This class implements the actual language identifier.
     """
 
+    # new version: speed-up
+    @classmethod
+    def from_pickled_model(cls, pickled_file, *args, **kwargs):
+        # load data
+        filepath = str(Path(__file__).parent / pickled_file)
+        with lzma.open(filepath) as filehandle:
+            nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = cpickle.load(filehandle)
+        nb_numfeats = int(len(nb_ptc) / len(nb_pc))
+
+        # reconstruct pc and ptc
+        nb_pc = np.array(nb_pc)
+        nb_ptc = np.array(nb_ptc).reshape(nb_numfeats, len(nb_pc))
+
+        return cls(nb_ptc, nb_pc, nb_numfeats, nb_classes, tk_nextmove, tk_output, *args, **kwargs)
+
+    # legacy methods
     @classmethod
     def from_modelstring(cls, string, *args, **kwargs):
+        # load data
         nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = loads(bz2.decompress(base64.b64decode(string)))
         nb_numfeats = int(len(nb_ptc) / len(nb_pc))
 
@@ -459,7 +479,7 @@ def main():
             logger.warning("Failed to load %s: %s" % (options.model, e))
 
     if identifier is None:
-        identifier = LanguageIdentifier.from_modelstring(model, norm_probs=options.normalize)
+        identifier = LanguageIdentifier.from_pickled_model(model, norm_probs=options.normalize)
         logger.info("Using internal model")
 
     if options.langs:
