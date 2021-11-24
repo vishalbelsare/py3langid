@@ -3,22 +3,90 @@
 =============
 
 
+``py3langid`` is a fork of the standalone language identification tool ``langid.py`` by Marco Lui.
+
+Original license: BSD-2-Clause.
+
+Fork license: BSD-3-Clause.
+
+
+
 Changes in this fork
 --------------------
 
-``py3langid`` is a fork of the standalone language identification tool ``langid.py`` by Marco Lui.
+Execution speed has been improved and the code base has been optimized for Python 3.6+:
 
-To use it as a drop-in replacement:
+- Loading the module with ``import`` is now about 10x faster
+- Language detection with ``langid.classify`` is now about 2.5x faster
 
-1. ``pip3 install py3langid`` (or ``pip`` where applicable)
-2. ``import py3langid as langid``
 
-The classification functions have been modernized, thanks to implementation changes language detection with Python (``langid.classify``) is currently 2.5x faster.
+Usage
+-----
 
-The readme below is provided for reference, only the classification functions are tested and maintained for now.
+Use as a drop-in replacement
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Original license: BSD-2-Clause.
-Fork license: BSD-3-Clause.
+- ``pip3 install py3langid`` (or ``pip`` where applicable)
+   * with Python: ``import py3langid as langid``
+   * on the command-line: ``langid``
+
+
+Python functions
+~~~~~~~~~~~~~~~~
+
+Basics:
+
+.. code-block:: python
+
+    >>> import py3langid as langid
+    
+    >>> text = 'This text is in English.'
+    # identified language and probability
+    >>> langid.classify(text)
+    ('en', -56.77428913116455)
+    # unpack the result tuple in variables
+    >>> lang, prob = langid.classify(text)
+    # all potential languages
+    >>> langid.rank(text)
+
+
+More options:
+
+.. code-block:: python
+
+    >>> from py3langid.langid import LanguageIdentifier, MODEL_FILE
+    # subset of target languages
+    >>> identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE)
+    >>> identifier.set_languages(['de', 'en', 'fr'])
+    # this won't work well...
+    >>> identifier.classify('这样不好')
+    ('en', -81.83166265487671)
+    # normalization of probabilities to an interval between 0 and 1
+    >>> identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=True)
+    >>> identifier.classify('This should be enough text.'))
+    ('en', 1.0)
+
+
+On the command-line
+~~~~~~~~~~~~~~~~~~~
+
+.. code-block:: bash
+
+    # basic usage with probability normalization
+    $ echo "This should be enough text." | langid -n
+    ('en', 1.0)
+    # define a subset of target languages
+    $ echo "This won't be recognized properly." | langid -n -l fr,it,tr
+    ('it', 0.9703832808613264)
+
+
+
+====================
+Legacy documentation
+====================
+
+
+**The readme below is provided for reference, only some of the functions are currently tested and maintained.**
 
 
 Introduction
@@ -66,9 +134,9 @@ The training data was drawn from 5 different sources:
 Usage
 -----
 
-    langid.py [options]
+    langid [options]
 
-Options:
+optional arguments:
   -h, --help            show this help message and exit
   -s, --serve           launch web service
   --host=HOST           host/ip to bind to
@@ -195,8 +263,6 @@ this is useful for using ``langid.py`` with UNIX utilities such as ``find``.
 In batch mode, ``langid.py`` uses ``multiprocessing`` to invoke multiple instances of
 the classifier, utilizing all available CPUs to classify documents in parallel. 
 
-.. Probability Normalization
-
 
 Probability Normalization
 -------------------------
@@ -215,8 +281,8 @@ command-line usages of ``langid.py``, it can be enabled by passing the ``-n`` fl
 probability normalization in library use, the user must instantiate their own 
 ``LanguageIdentifier``. An example of such usage is as follows::
   
-  >> from langid.langid import LanguageIdentifier, model
-  >> identifier = LanguageIdentifier.from_modelstring(model, norm_probs=True)
+  >> from py3langid.langid import LanguageIdentifier, MODEL_FILE
+  >> identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=True)
   >> identifier.classify("This is a test")
   ('en', 0.9999999909903544)
 

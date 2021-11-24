@@ -24,6 +24,7 @@ def test_langid():
     assert prob < 0
     # subset of target languages
     identifier.set_languages(['de', 'en', 'fr'])
+    assert identifier.classify('这样不好')[0] != 'zh'
 
 
 
