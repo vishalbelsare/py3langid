@@ -36,13 +36,14 @@ logger = logging.getLogger(__name__)
 
 # Convenience methods defined below will initialize this when first called.
 identifier = None
+MODEL_FILE = 'data/model.plzma'
 
 # Defaults for inbuilt server
 HOST = None  # leave as none for auto-detect
 PORT = 9008
 FORCE_WSGIREF = False
-NORM_PROBS = False  # Normalize output probabilities.
 
+NORM_PROBS = False  # Normalize output probabilities.
 # NORM_PROBS defaults to False for a small speed increase. It does not
 # affect the relative ordering of the predicted classes. It can be
 # re-enabled at runtime - see the readme.
@@ -135,7 +136,7 @@ def load_model(path=None):
     global identifier
     logger.info('initializing identifier')
     if path is None:
-        identifier = LanguageIdentifier.from_pickled_model('data/model.plzma')
+        identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE)
     else:
         identifier = LanguageIdentifier.from_modelpath(path)
 
@@ -201,9 +202,11 @@ class LanguageIdentifier:
                 # Windows this causes a RuntimeWarning, so we explicitly
                 # suppress it.
                 with np.errstate(over='ignore'):
-                    # old: pd = (1/np.exp(pd[None,:] - pd[:,None]).sum(1))
-                    pd_exp = np.exp(pd)
-                    pd = pd_exp / pd_exp.sum()
+                    # old:
+                    pd = (1/np.exp(pd[None,:] - pd[:,None]).sum(1))
+                    # suggested but doesn't work:
+                    #pd_exp = np.exp(pd)
+                    #pd = pd_exp / pd_exp.sum()
                 return pd
         else:
             def norm_probs(pd):
@@ -479,7 +482,7 @@ def main():
             logger.warning("Failed to load %s: %s" % (options.model, e))
 
     if identifier is None:
-        identifier = LanguageIdentifier.from_pickled_model(model, norm_probs=options.normalize)
+        identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=options.normalize)
         logger.info("Using internal model")
 
     if options.langs:

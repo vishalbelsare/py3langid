@@ -54,7 +54,7 @@ setup(name='py3langid',
     ],
     package_data={'py3langid': ['data/model.plzma']},
     entry_points= {
-      'console_scripts': ['langid = langid.langid:main'],
+      'console_scripts': ['langid = py3langid.langid:main'],
     },
     tests_require=['pytest'],
     zip_safe=False,
