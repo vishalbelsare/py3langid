@@ -5,9 +5,7 @@
 
 ``py3langid`` is a fork of the standalone language identification tool ``langid.py`` by Marco Lui.
 
-Original license: BSD-2-Clause.
-
-Fork license: BSD-3-Clause.
+Original license: BSD-2-Clause. Fork license: BSD-3-Clause.
 
 
 
@@ -23,16 +21,22 @@ Execution speed has been improved and the code base has been optimized for Pytho
 Usage
 -----
 
-Use as a drop-in replacement
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Drop-in replacement
+~~~~~~~~~~~~~~~~~~~
 
-- ``pip3 install py3langid`` (or ``pip`` where applicable)
+
+1. Install the package:
+
+   * ``pip3 install py3langid`` (or ``pip`` where applicable)
+
+2. Use it:
+
    * with Python: ``import py3langid as langid``
    * on the command-line: ``langid``
 
 
-Python functions
-~~~~~~~~~~~~~~~~
+With Python
+~~~~~~~~~~~
 
 Basics:
 
@@ -55,12 +59,14 @@ More options:
 .. code-block:: python
 
     >>> from py3langid.langid import LanguageIdentifier, MODEL_FILE
+
     # subset of target languages
     >>> identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE)
     >>> identifier.set_languages(['de', 'en', 'fr'])
     # this won't work well...
     >>> identifier.classify('这样不好')
     ('en', -81.83166265487671)
+
     # normalization of probabilities to an interval between 0 and 1
     >>> identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=True)
     >>> identifier.classify('This should be enough text.'))
@@ -75,18 +81,19 @@ On the command-line
     # basic usage with probability normalization
     $ echo "This should be enough text." | langid -n
     ('en', 1.0)
+
     # define a subset of target languages
     $ echo "This won't be recognized properly." | langid -n -l fr,it,tr
     ('it', 0.9703832808613264)
 
+(This might not work on Windows systems.)
 
 
-====================
 Legacy documentation
-====================
+--------------------
 
 
-**The readme below is provided for reference, only some of the functions are currently tested and maintained.**
+**The docs below are provided for reference, only part of the functions are currently tested and maintained.**
 
 
 Introduction
