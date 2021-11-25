@@ -243,7 +243,7 @@ class LanguageIdentifier:
             self.nb_ptc = nb_ptc[:, subset_mask]
             self.nb_pc = nb_pc[subset_mask]
 
-    def instance2fv(self, text):
+    def instance2fv(self, text, datatype='uint16'):
         """
         Map an instance into the feature space of the trained model.
         """
@@ -251,7 +251,8 @@ class LanguageIdentifier:
         if isinstance(text, str):
             text = text.encode('utf8')
 
-        arr = np.zeros((self.nb_numfeats,), dtype='uint32')
+        # consider that less feature counts are going to be needed
+        arr = np.zeros((self.nb_numfeats,), dtype=datatype)
 
         # Convert the text to a sequence of ascii values and
         # Count the number of times we enter each state
@@ -261,8 +262,12 @@ class LanguageIdentifier:
             state = self.tk_nextmove[(state << 8) + letter]
             indexes.extend(self.tk_output.get(state, []))
         # Update all the productions corresponding to the state
-        for index, value in Counter(indexes).items():
-            arr[index] = value
+        try:
+            for index, value in Counter(indexes).items():
+                arr[index] = value
+        # numpy error on datatype
+        except TypeError:
+            return instance2fv(self, text, datatype='uint32')
 
         return arr
 
