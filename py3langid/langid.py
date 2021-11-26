@@ -247,7 +247,8 @@ class LanguageIdentifier:
         """
         # convert to binary if it isn't already the case
         if isinstance(text, str):
-            text = text.encode('utf8')
+            # fix for surrogates on Windows/NT platforms
+            text = text.encode('utf8', errors='surrogatepass')
 
         # Convert the text to a sequence of ascii values and
         # Count the number of times we enter each state
