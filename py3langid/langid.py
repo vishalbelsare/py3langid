@@ -25,11 +25,12 @@ from wsgiref.util import shift_path_info
 
 import numpy as np
 
-import _pickle as cpickle
+# cpickle on Python3
 try:
-    from cPickle import loads
+    import _pickle as pickle
+# default
 except ImportError:
-    from pickle import loads
+    import pickle
 
 
 logger = logging.getLogger(__name__)
@@ -150,7 +151,7 @@ class LanguageIdentifier:
         # load data
         filepath = str(Path(__file__).parent / pickled_file)
         with lzma.open(filepath) as filehandle:
-            nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = cpickle.load(filehandle)
+            nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = pickle.load(filehandle)
         nb_numfeats = int(len(nb_ptc) / len(nb_pc))
 
         # reconstruct pc and ptc
@@ -163,7 +164,7 @@ class LanguageIdentifier:
     @classmethod
     def from_modelstring(cls, string, *args, **kwargs):
         # load data
-        nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = loads(bz2.decompress(base64.b64decode(string)))
+        nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = pickle.loads(bz2.decompress(base64.b64decode(string)))
         nb_numfeats = int(len(nb_ptc) / len(nb_pc))
 
         # reconstruct pc and ptc
