@@ -187,14 +187,13 @@ class LanguageIdentifier:
         self.tk_nextmove = tk_nextmove
         self.tk_output = tk_output
 
-        # todo: clean this
-        if norm_probs:
-            def norm_probs(pd):
-                """
-                Renormalize log-probs into a proper distribution (sum 1)
-                The technique for dealing with underflow is described in
-                http://jblevins.org/log/log-sum-exp
-                """
+        def apply_norm_probs(pd):
+            """
+            Renormalize log-probs into a proper distribution (sum 1)
+            The technique for dealing with underflow is described in
+            http://jblevins.org/log/log-sum-exp
+            """
+            if norm_probs:
                 # Ignore overflow when computing the exponential. Large values
                 # in the exp produce a result of inf, which does not affect
                 # the correctness of the calculation (as 1/x->0 as x->inf).
@@ -204,12 +203,9 @@ class LanguageIdentifier:
                 with np.errstate(over='ignore'):
                     # old: pd = (1/np.exp(pd[None,:] - pd[:,None]).sum(1))
                     pd = (pd - np.min(pd)) / np.ptp(pd)
-                return pd
-        else:
-            def norm_probs(pd):
-                return pd
+            return pd
 
-        self.norm_probs = norm_probs
+        self.norm_probs = apply_norm_probs
 
         # Maintain a reference to the full model, in case we change our language set
         # multiple times.
