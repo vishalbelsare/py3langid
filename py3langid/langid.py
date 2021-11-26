@@ -35,7 +35,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Convenience methods defined below will initialize this when first called.
-identifier = None
+IDENTIFIER = None
 MODEL_FILE = 'data/model.plzma'
 
 # Defaults for inbuilt server
@@ -55,11 +55,11 @@ def set_languages(langs=None):
 
     @param langs a list of language codes
     """
-    global identifier
-    if identifier is None:
-        load_model()
+    global IDENTIFIER
+    if IDENTIFIER is None:
+        IDENTIFIER = load_model()
 
-    return identifier.set_languages(langs)
+    return IDENTIFIER.set_languages(langs)
 
 
 def classify(instance):
@@ -71,11 +71,11 @@ def classify(instance):
     @param instance a text string. Unicode strings will automatically be utf8-encoded
     @returns a tuple of the most likely language and the confidence score
     """
-    global identifier
-    if identifier is None:
-        load_model()
+    global IDENTIFIER
+    if IDENTIFIER is None:
+        IDENTIFIER = load_model()
 
-    return identifier.classify(instance)
+    return IDENTIFIER.classify(instance)
 
 
 def rank(instance):
@@ -87,11 +87,11 @@ def rank(instance):
     @param instance a text string. Unicode strings will automatically be utf8-encoded
     @returns a list of tuples language and the confidence score, in descending order
     """
-    global identifier
-    if identifier is None:
-        load_model()
+    global IDENTIFIER
+    if IDENTIFIER is None:
+        IDENTIFIER = load_model()
 
-    return identifier.rank(instance)
+    return IDENTIFIER.rank(instance)
 
 
 def cl_path(path):
@@ -103,11 +103,11 @@ def cl_path(path):
     @param path path to file
     @returns a tuple of the most likely language and the confidence score
     """
-    global identifier
-    if identifier is None:
-        load_model()
+    global IDENTIFIER
+    if IDENTIFIER is None:
+        IDENTIFIER = load_model()
 
-    return identifier.cl_path(path)
+    return IDENTIFIER.cl_path(path)
 
 
 def rank_path(path):
@@ -119,11 +119,11 @@ def rank_path(path):
     @param path path to file
     @returns a list of tuples language and the confidence score, in descending order
     """
-    global identifier
-    if identifier is None:
-        load_model()
+    global IDENTIFIER
+    if IDENTIFIER is None:
+        IDENTIFIER = load_model()
 
-    return identifier.rank_path(path)
+    return IDENTIFIER.rank_path(path)
 
 
 def load_model(path=None):
@@ -133,12 +133,10 @@ def load_model(path=None):
 
     @param path to model
     """
-    global identifier
-    logger.info('initializing identifier')
+    logger.debug('initializing identifier')
     if path is None:
-        identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE)
-    else:
-        identifier = LanguageIdentifier.from_modelpath(path)
+        return LanguageIdentifier.from_pickled_model(MODEL_FILE)
+    return LanguageIdentifier.from_modelpath(path)
 
 
 class LanguageIdentifier:
@@ -188,6 +186,7 @@ class LanguageIdentifier:
         self.tk_nextmove = tk_nextmove
         self.tk_output = tk_output
 
+        # todo: clean this
         if norm_probs:
             def norm_probs(pd):
                 """
@@ -202,11 +201,8 @@ class LanguageIdentifier:
                 # Windows this causes a RuntimeWarning, so we explicitly
                 # suppress it.
                 with np.errstate(over='ignore'):
-                    # old:
-                    pd = (1/np.exp(pd[None,:] - pd[:,None]).sum(1))
-                    # suggested but doesn't work:
-                    #pd_exp = np.exp(pd)
-                    #pd = pd_exp / pd_exp.sum()
+                    # old: pd = (1/np.exp(pd[None,:] - pd[:,None]).sum(1))
+                    pd = (pd - np.min(pd)) / np.ptp(pd)
                 return pd
         else:
             def norm_probs(pd):
@@ -246,13 +242,12 @@ class LanguageIdentifier:
     def instance2fv(self, text, datatype='uint16'):
         """
         Map an instance into the feature space of the trained model.
+
+        @param datatype NumPy data type (originally uint32)
         """
         # convert to binary if it isn't already the case
         if isinstance(text, str):
             text = text.encode('utf8')
-
-        # consider that less feature counts are going to be needed
-        arr = np.zeros((self.nb_numfeats,), dtype=datatype)
 
         # Convert the text to a sequence of ascii values and
         # Count the number of times we enter each state
@@ -261,13 +256,12 @@ class LanguageIdentifier:
         for letter in list(text):
             state = self.tk_nextmove[(state << 8) + letter]
             indexes.extend(self.tk_output.get(state, []))
+
+        # datatype: consider that less feature counts are going to be needed
+        arr = np.zeros(self.nb_numfeats, dtype=datatype)
         # Update all the productions corresponding to the state
-        try:
-            for index, value in Counter(indexes).items():
-                arr[index] = value
-        # numpy error on datatype
-        except TypeError:
-            return instance2fv(self, text, datatype='uint32')
+        for index, value in Counter(indexes).items():
+            arr[index] = value
 
         return arr
 
@@ -298,7 +292,7 @@ class LanguageIdentifier:
         """
         Classify a file at a given path
         """
-        with open(path) as f:
+        with open(path, 'rb') as f:
             retval = self.classify(f.read())
         return path, retval
 
@@ -306,7 +300,7 @@ class LanguageIdentifier:
         """
         Class ranking for a file at a given path
         """
-        with open(path) as f:
+        with open(path, 'rb') as f:
             retval = self.rank(f.read())
         return path, retval
 
@@ -452,7 +446,6 @@ def application(environ, start_response):
 
 
 def main():
-    global identifier
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--serve', action='store_true', default=False, dest='serve', help='launch web service')
@@ -479,26 +472,27 @@ def main():
         parser.error("cannot specify both batch and serve at the same time")
 
     # unpack a model
+    global IDENTIFIER
     if options.model:
         try:
-            identifier = LanguageIdentifier.from_modelpath(options.model, norm_probs=options.normalize)
+            IDENTIFIER = LanguageIdentifier.from_modelpath(options.model, norm_probs=options.normalize)
             logger.info("Using external model: %s", options.model)
         except IOError as e:
             logger.warning("Failed to load %s: %s" % (options.model, e))
 
-    if identifier is None:
-        identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=options.normalize)
+    if IDENTIFIER is None:
+        IDENTIFIER = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=options.normalize)
         logger.info("Using internal model")
 
     if options.langs:
         langs = options.langs.split(",")
-        identifier.set_languages(langs)
+        IDENTIFIER.set_languages(langs)
 
     def _process(text):
         """
         Set up a local function to do output, configured according to our settings.
         """
-        return identifier.rank(text) if options.dist else identifier.classify(text)
+        return IDENTIFIER.rank(text) if options.dist else IDENTIFIER.classify(text)
 
     if options.url:
         import contextlib
@@ -560,16 +554,16 @@ def main():
                     yield path
 
         writer = csv.writer(sys.stdout)
-        pool = mp.Pool()
-        if options.dist:
-            writer.writerow(['path'] + identifier.nb_classes)
-            for path, ranking in pool.imap_unordered(rank_path, generate_paths()):
-                ranking = dict(ranking)
-                row = [path] + [ranking[c] for c in identifier.nb_classes]
-                writer.writerow(row)
-        else:
-            for path, (lang, conf) in pool.imap_unordered(cl_path, generate_paths()):
-                writer.writerow((path, lang, conf))
+        with mp.Pool() as pool:
+            if options.dist:
+                writer.writerow(['path'] + IDENTIFIER.nb_classes)
+                for path, ranking in pool.imap_unordered(rank_path, generate_paths()):
+                    ranking = dict(ranking)
+                    row = [path] + [ranking[c] for c in IDENTIFIER.nb_classes]
+                    writer.writerow(row)
+            else:
+                for path, (lang, conf) in pool.imap_unordered(cl_path, generate_paths()):
+                    writer.writerow((path, lang, conf))
     else:
         import sys
         if sys.stdin.isatty():
