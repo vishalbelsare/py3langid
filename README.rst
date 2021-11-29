@@ -15,7 +15,7 @@ Changes in this fork
 Execution speed has been improved and the code base has been optimized for Python 3.6+:
 
 - Loading the module with ``import`` is now about 10x faster
-- Language detection with ``langid.classify`` is now about 2.5x faster
+- Language detection with ``langid.classify`` is now about 5x faster
 
 
 Usage
@@ -73,6 +73,13 @@ More options:
     ('en', 1.0)
 
 
+Note: the Numpy data type for the feature vector has been changed to optimize for speed. If results are inconsistent, try restoring the original setting:
+
+.. code-block:: python
+
+    >>> langid.classify(text, datatype='uint32')
+
+
 On the command-line
 ~~~~~~~~~~~~~~~~~~~
 
@@ -86,7 +93,6 @@ On the command-line
     $ echo "This won't be recognized properly." | langid -n -l fr,it,tr
     ('it', 0.9703832808613264)
 
-(This might not work on Windows systems.)
 
 
 Legacy documentation
