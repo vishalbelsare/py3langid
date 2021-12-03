@@ -17,6 +17,8 @@ Execution speed has been improved and the code base has been optimized for Pytho
 - Loading the module with ``import`` is now about 10x faster
 - Language detection with ``langid.classify`` is now about 5x faster
 
+For implementation details see this blog post: `How to make language detection with langid.py faster <https://adrien.barbaresi.eu/blog/language-detection-langid-py-faster.html>`_.
+
 
 Usage
 -----
