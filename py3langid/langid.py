@@ -42,9 +42,11 @@ def load_model(path=None):
     @param path to model
     """
     LOGGER.debug('initializing identifier')
+    global IDENTIFIER
     if path is None:
-        return LanguageIdentifier.from_pickled_model(MODEL_FILE)
-    return LanguageIdentifier.from_modelpath(path)
+        IDENTIFIER = LanguageIdentifier.from_pickled_model(MODEL_FILE)
+    else:
+        IDENTIFIER = LanguageIdentifier.from_modelpath(path)
 
 
 def set_languages(langs=None):
@@ -53,9 +55,8 @@ def set_languages(langs=None):
 
     @param langs a list of language codes
     """
-    global IDENTIFIER
     if IDENTIFIER is None:
-        IDENTIFIER = load_model()
+        load_model()
     return IDENTIFIER.set_languages(langs)
 
 
@@ -68,9 +69,8 @@ def classify(instance):
     @param instance a text string. Unicode strings will automatically be utf8-encoded
     @returns a tuple of the most likely language and the confidence score
     """
-    global IDENTIFIER
     if IDENTIFIER is None:
-        IDENTIFIER = load_model()
+        load_model()
     return IDENTIFIER.classify(instance)
 
 
@@ -83,9 +83,8 @@ def rank(instance):
     @param instance a text string. Unicode strings will automatically be utf8-encoded
     @returns a list of tuples language and the confidence score, in descending order
     """
-    global IDENTIFIER
     if IDENTIFIER is None:
-        IDENTIFIER = load_model()
+        load_model()
     return IDENTIFIER.rank(instance)
 
 
@@ -98,9 +97,8 @@ def cl_path(path):
     @param path path to file
     @returns a tuple of the most likely language and the confidence score
     """
-    global IDENTIFIER
     if IDENTIFIER is None:
-        IDENTIFIER = load_model()
+        load_model()
     return IDENTIFIER.cl_path(path)
 
 
@@ -113,9 +111,8 @@ def rank_path(path):
     @param path path to file
     @returns a list of tuples language and the confidence score, in descending order
     """
-    global IDENTIFIER
     if IDENTIFIER is None:
-        IDENTIFIER = load_model()
+        load_model()
     return IDENTIFIER.rank_path(path)
 
 
