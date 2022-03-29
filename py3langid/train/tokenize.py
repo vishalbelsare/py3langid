@@ -43,20 +43,21 @@ TOP_DOC_FREQ = 15000 # number of tokens to consider for each order
 NUM_BUCKETS = 64 # number of buckets to use in k-v pair generation
 CHUNKSIZE = 50 # maximum size of chunk (number of files tokenized - less = less memory use)
 
-import os, sys, argparse
+import argparse
+import atexit
 import csv
-import shutil
+import gzip
 import marshal
 import multiprocessing as mp
+import os
 import random
-import atexit
-import gzip
+import shutil
 import tempfile
 
 from itertools import tee
 from collections import defaultdict, Counter
 
-from common import makedir, chunk, MapPool
+from .common import makedir, chunk, MapPool
 
 class NGramTokenizer(object):
     def __init__(self, min_order=1, max_order=3):
@@ -67,17 +68,17 @@ class NGramTokenizer(object):
         min_order = self.min_order
         max_order = self.max_order
         t = tee(seq, max_order)
-        for i in xrange(max_order):
-            for _ in xrange(i):
+        for i in range(max_order):
+            for _ in range(i):
                 # advance iterators, ignoring result
                 t[i].next()
         while True:
             token = ''.join(tn.next() for tn in t)
             if len(token) < max_order: break
-            for n in xrange(min_order-1, max_order):
+            for n in range(min_order-1, max_order):
                 yield token[:n+1]
-        for a in xrange(max_order-1):
-            for b in xrange(min_order, max_order-a):
+        for a in range(max_order-1):
+            for b in range(min_order, max_order-a):
                 yield token[a:a+b]
 
 class WordNGramTokenizer(object):
@@ -90,17 +91,17 @@ class WordNGramTokenizer(object):
         min_order = self.min_order
         max_order = self.max_order
         t = tee(_seq, max_order)
-        for i in xrange(max_order):
-            for _ in xrange(i):
+        for i in range(max_order):
+            for _ in range(i):
                 # advance iterators, ignoring result
                 t[i].next()
         while True:
             token = [tn.next() for tn in t]
             if len(token) < max_order: break
-            for n in xrange(min_order-1, max_order):
+            for n in range(min_order-1, max_order):
                 yield ' '.join(token[:n+1])
-        for a in xrange(max_order-1):
-            for b in xrange(min_order, max_order-a):
+        for a in range(max_order-1):
+            for b in range(min_order, max_order-a):
                 yield ' '.join(token[a:a+b])
 
 @atexit.register
@@ -147,7 +148,7 @@ def pass_tokenize(chunk_items):
                 text = f.read()
                 poss = max(1,len(text) - __sample_size) # possibe start locations
                 count = min(poss, __sample_count) # reduce number of samples if document is too short
-                offsets = random.sample(xrange(poss), count)
+                offsets = random.sample(range(poss), count)
                 for offset in offsets:
                     tokens = extractor(text[offset: offset+__sample_size])
                     # Term Frequency or Document Frequency
@@ -223,16 +224,16 @@ def build_index(items, tokenizer, outdir, buckets=NUM_BUCKETS,
 
         doc_count = defaultdict(int)
         chunk_count = len(item_chunks)
-        print "chunk size: {0} ({1} chunks)".format(chunk_size, chunk_count)
-        print "job count: {0}".format(jobs)
+        print("chunk size: {0} ({1} chunks)".format(chunk_size, chunk_count))
+        print("job count: {0}".format(jobs))
 
         if sample_count:
-            print "sampling-based tokenization: size {0} count {1}".format(sample_size, sample_count)
+            print("sampling-based tokenization: size {0} count {1}".format(sample_size, sample_count))
         else:
-            print "whole-document tokenization"
+            print("whole-document tokenization")
 
         for i, keycount in enumerate(pass_tokenize_out):
-            print "tokenized chunk (%d/%d) [%d keys]" % (i+1,chunk_count, keycount)
+            print("tokenized chunk (%d/%d) [%d keys]" % (i+1,chunk_count, keycount))
 
     complete = True
 
@@ -278,12 +279,12 @@ if __name__ == "__main__":
     index_path = os.path.join(args.model, 'paths')
 
     # display paths
-    print "index path:", index_path
-    print "bucketlist path:", bucketlist_path
-    print "buckets path:", buckets_dir
+    print("index path:", index_path)
+    print("bucketlist path:", bucketlist_path)
+    print("buckets path:", buckets_dir)
 
     if args.line:
-        print "treating each LINE as a document"
+        print("treating each LINE as a document")
 
     with open(index_path) as f:
         reader = csv.reader(f)
@@ -293,28 +294,28 @@ if __name__ == "__main__":
         parser.error('can only specify one of --word, --wordn, --scanner')
 
     # Tokenize
-    print "will tokenize %d files" % len(items)
+    print("will tokenize %d files" % len(items))
     if args.scanner:
-        from scanner import Scanner
+        from .scanner import Scanner
         tokenizer = Scanner.from_file(args.scanner)
-        print "using provided scanner: ", args.scanner
+        print("using provided scanner: ", args.scanner)
     elif args.word:
         tokenizer = str.split
-        print "using str.split to tokenize"
+        print("using str.split to tokenize")
     elif args.wordn:
         min_order = args.min_order if args.min_order else MIN_NGRAM_ORDER
         max_order = args.max_order if args.max_order else MAX_NGRAM_ORDER
         tokenizer = WordNGramTokenizer(min_order,max_order)
-        print "using WORD n-gram tokenizer: min_order({0}) max_order({1})".format(min_order,max_order)
+        print("using WORD n-gram tokenizer: min_order({0}) max_order({1})".format(min_order,max_order))
     else:
         min_order = args.min_order if args.min_order else MIN_NGRAM_ORDER
         max_order = args.max_order if args.max_order else MAX_NGRAM_ORDER
         tokenizer = NGramTokenizer(min_order,max_order)
-        print "using n-gram tokenizer: min_order({0}) max_order({1})".format(min_order,max_order)
+        print("using n-gram tokenizer: min_order({0}) max_order({1})".format(min_order,max_order))
     if args.term_freq:
-        print "counting term frequency"
+        print("counting term frequency")
     else:
-        print "counting document frequency"
+        print("counting document frequency")
     b_dirs = build_index(items, tokenizer, buckets_dir, args.buckets, args.jobs, args.chunksize, args.sample_count, args.sample_size, args.term_freq, args.line)
 
     # output the paths to the buckets

@@ -164,7 +164,7 @@ def compute_IG(bucketlist, features, dist, binarize, suffix, job_count=None):
         for i, (t, w) in enumerate(pass_IG_out):
             weights.append(w)
             terms.extend(t)
-            print "processed chunk (%d/%d) [%d terms]" % (i+1, num_chunk, len(t))
+            print("processed chunk (%d/%d) [%d terms]" % (i+1, num_chunk, len(t)))
 
     if binarize:
         weights = numpy.hstack(weights).transpose()
@@ -228,14 +228,14 @@ if __name__ == "__main__":
         weights_path = os.path.join(args.model, 'IGweights' + suffix + ('.bin' if args.binarize else ''))
 
     # display paths
-    print "model path:", args.model
-    print "buckets path:", bucketlist_paths
-    print "features path:", feature_path
-    print "weights path:", weights_path
-    print "index path:", index_path
-    print "suffix:", suffix
+    print("model path:", args.model)
+    print("buckets path:", bucketlist_paths)
+    print("features path:", feature_path)
+    print("weights path:", weights_path)
+    print("index path:", index_path)
+    print("suffix:", suffix)
 
-    print "computing information gain"
+    print("computing information gain")
     # Compile buckets together
     bucketlist = zip(*(map(str.strip, open(p)) for p in bucketlist_paths))
 
