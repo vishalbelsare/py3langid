@@ -43,20 +43,20 @@ TOP_DOC_FREQ = 15000 # number of tokens to consider for each order
 NUM_BUCKETS = 64 # number of buckets to use in k-v pair generation
 CHUNKSIZE = 50 # maximum size of chunk (number of files tokenized - less = less memory use)
 
-import os, sys, argparse
+import argparse
+import atexit
 import csv
-import shutil
-import tempfile
-
 import marshal
 import multiprocessing as mp
+import os
 import random
-import atexit
+import shutil
+import tempfile
 
 from itertools import tee
 from collections import defaultdict
 
-from common import makedir, chunk, MapPool
+from .common import makedir, chunk, MapPool
 
 class NGramTokenizer(object):
     def __init__(self, min_order=1, max_order=3):
@@ -67,17 +67,17 @@ class NGramTokenizer(object):
         min_order = self.min_order
         max_order = self.max_order
         t = tee(seq, max_order)
-        for i in xrange(max_order):
-            for _ in xrange(i):
+        for i in range(max_order):
+            for _ in range(i):
                 # advance iterators, ignoring result
                 t[i].next()
         while True:
             token = ''.join(tn.next() for tn in t)
             if len(token) < max_order: break
-            for n in xrange(min_order-1, max_order):
+            for n in range(min_order-1, max_order):
                 yield token[:n+1]
-        for a in xrange(max_order-1):
-            for b in xrange(min_order, max_order-a):
+        for a in range(max_order-1):
+            for b in range(min_order, max_order-a):
                 yield token[a:a+b]
 
 @atexit.register
@@ -124,7 +124,7 @@ def pass_tokenize(chunk_items):
                 text = f.read()
                 poss = max(1,len(text) - __sample_size) # possibe start locations
                 count = min(poss, __sample_count) # reduce number of samples if document is too short
-                offsets = random.sample(xrange(poss), count)
+                offsets = random.sample(range(poss), count)
                 for offset in offsets:
                     tokenset = set(extractor(text[offset: offset+__sample_size]))
                     for token in tokenset:
@@ -235,7 +235,7 @@ if __name__ == "__main__":
     # Tokenize
     print("will tokenize %d files" % len(items))
     if args.scanner:
-        from scanner import Scanner
+        from .scanner import Scanner
         tokenizer = Scanner.from_file(args.scanner)
         print("using provided scanner: ", args.scanner)
     elif args.word:

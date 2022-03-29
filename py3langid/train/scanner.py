@@ -34,11 +34,12 @@ authors and should not be interpreted as representing official policies, either 
 or implied, of the copyright holder.
 """
 
-import cPickle
-import os, sys, argparse
+import argparse
 import array
+import os
+import pickle
 from collections import deque, defaultdict
-from common import read_features
+from .common import read_features
 
 class Scanner(object):
     alphabet = map(chr, range(1<<8))
@@ -50,7 +51,7 @@ class Scanner(object):
     @classmethod
     def from_file(cls, path):
         with open(path) as f:
-            tk_nextmove, tk_output, feats = cPickle.load(f)
+            tk_nextmove, tk_output, feats = pickle.load(f)
         if isinstance(feats, dict):
             # The old scanner format had two identical dictionaries as the last
             # two items in the tuple. This format can still be used by langid.py,
@@ -142,7 +143,7 @@ class Scanner(object):
             def nextstate_iter():
                 # State count starts at 0, so the number of states is the number of i
                 # the last state (newstate) + 1
-                for state in xrange(newstate+1):
+                for state in range(newstate+1):
                     for letter in self.alphabet:
                         yield self.nextmove[(state, letter)]
             return array.array(typecode, nextstate_iter())
@@ -235,5 +236,5 @@ if __name__ == "__main__":
     scanner = tk_nextmove, tk_output, nb_features
 
     with open(output_path, 'w') as f:
-        cPickle.dump(scanner, f)
+        pickle.dump(scanner, f)
     print("wrote scanner to {0}".format(output_path))

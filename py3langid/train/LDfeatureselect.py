@@ -38,12 +38,13 @@ or implied, of the copyright holder.
 ######
 FEATURES_PER_LANG = 300 # number of features to select for each language
 
-import os, sys, argparse
+import argparse
 import csv
-import marshal
-import numpy
-import multiprocessing as mp
+import os
+
 from collections import defaultdict
+
+import numpy
 
 from common import read_weights, Enumerator, write_features
 

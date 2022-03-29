@@ -35,19 +35,24 @@ or implied, of the copyright holder.
 MAX_CHUNK_SIZE = 100 # maximum number of files to tokenize at once
 NUM_BUCKETS = 64 # number of buckets to use in k-v pair generation
 
-import base64, bz2, cPickle
-import os, sys, argparse, csv
 import array
-import numpy as np
-import tempfile
+import argparse
+import atexit
+import base64
+import bz2
+import csv
 import marshal
-import atexit, shutil
 import multiprocessing as mp
+import os
+import pickle
+import shutil
+import tempfile
 
-from collections import deque, defaultdict
-from contextlib import closing
+from collections import defaultdict
 
-from common import chunk, unmarshal_iter, read_features, index, MapPool
+import numpy as np
+
+from .common import chunk, unmarshal_iter, MapPool
 
 
 def offsets(chunks):
@@ -267,7 +272,7 @@ if __name__ == "__main__":
 
     # read scanner
     with open(scanner_path) as f:
-        tk_nextmove, tk_output, _ = cPickle.load(f)
+        tk_nextmove, tk_output, _ = pickle.load(f)
 
     # read list of languages in order
     with open(lang_path) as f:
@@ -283,7 +288,7 @@ if __name__ == "__main__":
 
     # output the model
     model = nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output
-    string = base64.b64encode(bz2.compress(cPickle.dumps(model)))
+    string = base64.b64encode(bz2.compress(pickle.dumps(model)))
     with open(output_path, 'w') as f:
         f.write(string)
 

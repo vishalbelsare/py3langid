@@ -33,15 +33,16 @@ authors and should not be interpreted as representing official policies, either 
 or implied, of the copyright holder.
 """
 
-import os, sys, argparse
+import argparse
 import csv
-import numpy
-import multiprocessing as mp
-from itertools import tee, imap, islice
-from collections import defaultdict
-from contextlib import closing
+import os
 
-from common import unmarshal_iter, MapPool, Enumerator, write_weights, read_features
+from collections import defaultdict
+
+import numpy
+
+from .common import unmarshal_iter, MapPool, Enumerator, write_weights, read_features
+
 
 def entropy(v, axis=0):
     """
@@ -130,7 +131,7 @@ def pass_IG(bucket):
         # binarized event space
         # Compute IG binarized with respect to each event
         ig = list()
-        for event_id in xrange(num_event):
+        for event_id in range(num_event):
             num_doc = __dist.sum()
             prior = numpy.array((num_doc - __dist[event_id], __dist[event_id]), dtype=float) / num_doc
 

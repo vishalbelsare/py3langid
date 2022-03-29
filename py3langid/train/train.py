@@ -41,20 +41,25 @@ CHUNKSIZE = 50 # maximum size of chunk (number of files tokenized - less = less 
 FEATURES_PER_LANG = 300 # number of features to select for each language
 
 import argparse
-import os, csv
-import numpy
-import base64, bz2, cPickle
+import base64
+import bz2
+import csv
+import os
+import pickle
 import shutil
 
-from common import makedir, write_weights, write_features, read_weights, read_features
-from index import CorpusIndexer
-from tokenize import build_index, NGramTokenizer
-from DFfeatureselect import tally, ngram_select
-from IGweight import compute_IG
-from LDfeatureselect import select_LD_features
-from scanner import build_scanner, Scanner
+import numpy
 
-from NBtrain import generate_cm, learn_pc, learn_ptc
+from .common import makedir, write_weights, write_features, read_features
+from .index import CorpusIndexer
+from .tokenize import build_index, NGramTokenizer
+from .DFfeatureselect import tally, ngram_select
+from .IGweight import compute_IG
+from .LDfeatureselect import select_LD_features
+from .scanner import build_scanner, Scanner
+
+from .NBtrain import generate_cm, learn_pc, learn_ptc
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -265,7 +270,7 @@ if __name__ == "__main__":
     if args.debug:
         scanner_path = feature_path + '.scanner'
         with open(scanner_path, 'w') as f:
-            cPickle.dump((tk_nextmove, tk_output, LDfeats), f)
+            pickle.dump((tk_nextmove, tk_output, LDfeats), f)
 
         print("wrote scanner to {0}".format(scanner_path))
 
@@ -285,7 +290,7 @@ if __name__ == "__main__":
     # output the model
     output_path = os.path.join(model_dir, 'model')
     model = nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output
-    string = base64.b64encode(bz2.compress(cPickle.dumps(model)))
+    string = base64.b64encode(bz2.compress(pickle.dumps(model)))
     with open(output_path, 'w') as f:
         f.write(string)
 

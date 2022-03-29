@@ -4,8 +4,17 @@ Common functions
 Marco Lui, January 2013
 """
 
-from itertools import islice
+import csv
+import errno
 import marshal
+import multiprocessing as mp
+import os
+
+from contextlib import contextmanager, closing
+from itertools import imap, islice
+
+import numpy
+
 
 class Enumerator(object):
     """
@@ -41,7 +50,6 @@ def unmarshal_iter(path):
             except EOFError:
                 break
 
-import os, errno
 def makedir(path):
     try:
         os.makedirs(path)
@@ -49,7 +57,6 @@ def makedir(path):
         if e.errno != errno.EEXIST:
             raise
 
-import csv
 
 def write_weights(weights, path):
     w = dict(weights)
@@ -70,7 +77,7 @@ def write_weights(weights, path):
                 row.append(w[k])
             writer.writerow(row)
 
-import numpy
+
 def read_weights(path):
     with open(path) as f:
         reader = csv.reader(f)
@@ -112,10 +119,6 @@ def index(seq):
     """
     return {(k,v) for (v,k) in enumerate(seq)}
 
-
-from itertools import imap
-from contextlib import contextmanager, closing
-import multiprocessing as mp
 
 @contextmanager
 def MapPool(processes=None, initializer=None, initargs=None, maxtasksperchild=None, chunksize=1):

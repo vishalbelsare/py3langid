@@ -8,14 +8,15 @@ Marco Lui, February 2013
 NUM_BUCKETS = 64 # number of buckets to use in k-v pair generation
 CHUNKSIZE = 50 # maximum size of chunk (number of files tokenized - less = less memory use)
 
-import os
 import argparse
+import os
+
 import numpy as np
 
-from common import read_features, makedir, write_weights
-from scanner import build_scanner
-from index import CorpusIndexer
-from NBtrain import generate_cm, learn_pc, learn_ptc
+from .common import read_features, makedir, write_weights
+from .scanner import build_scanner
+from .index import CorpusIndexer
+from .NBtrain import generate_cm, learn_ptc
 
 
 if __name__ == "__main__":
@@ -95,7 +96,7 @@ if __name__ == "__main__":
         raise ValueError("found no files!")
 
     print("will process {0} features across {1} paths".format(len(feats), len(items)))
-    print "will process {0} features across {1} paths".format(len(feats), len(items))
+    print("will process {0} features across {1} paths".format(len(feats), len(items)))
 
     # produce a scanner over all the features
     tk_nextmove, tk_output = build_scanner(feats)

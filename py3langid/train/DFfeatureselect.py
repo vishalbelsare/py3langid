@@ -39,23 +39,14 @@ or implied, of the copyright holder.
 MAX_NGRAM_ORDER = 4 # largest order of n-grams to consider
 TOKENS_PER_ORDER = 15000 # number of tokens to consider for each order
 
-import os, sys, argparse
-import collections
-import csv
-import shutil
-import tempfile
+import argparse
+import os
 import marshal
-import random
-import numpy
-import cPickle
-import multiprocessing as mp
-import atexit
-from itertools import tee, imap, islice
-from collections import defaultdict
-from datetime import datetime
-from contextlib import closing
 
-from common import Enumerator, unmarshal_iter, MapPool, write_features, write_weights
+from collections import defaultdict
+
+from .common import unmarshal_iter, MapPool, write_features, write_weights
+
 
 def pass_sum_df(bucket):
     """
