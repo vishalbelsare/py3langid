@@ -9,7 +9,6 @@ Based on research by Marco Lui and Tim Baldwin.
 See LICENSE file for more info.
 """
 
-import argparse
 import bz2
 import json
 import logging
@@ -20,9 +19,6 @@ from base64 import b64decode
 from collections import Counter
 from pathlib import Path
 from urllib.parse import parse_qs
-
-from wsgiref.simple_server import make_server
-from wsgiref.util import shift_path_info
 
 import numpy as np
 
@@ -288,78 +284,11 @@ class LanguageIdentifier:
         return path, retval
 
 
-# Based on http://www.ubacoda.com/index.php?p=8
-query_form = """
-<html>
-  <head>
-    <meta http-equiv="Content-type" content="text/html; charset=utf-8">
-    <title>Language Identifier</title>
-    <script src="//ajax.googleapis.com/ajax/libs/jquery/1.7.2/jquery.min.js" type="text/javascript"></script>
-    <script type="text/javascript" charset="utf-8">
-      $(document).ready(function() {{
-        $("#typerArea").keyup(displayType);
-
-        function displayType(){{
-          var contents = $("#typerArea").val();
-          if (contents.length != 0) {{
-            $.post(
-              "/rank",
-              {{q:contents}},
-              function(data){{
-                for(i=0;i<5;i++) {{
-                  $("#lang"+i).html(data.responseData[i][0]);
-                  $("#conf"+i).html(data.responseData[i][1]);
-                }}
-                $("#rankTable").show();
-              }},
-              "json"
-            );
-          }}
-          else {{
-            $("#rankTable").hide();
-          }}
-        }}
-        $("#manualSubmit").remove();
-        $("#rankTable").hide();
-      }});
-    </script>
-  </head>
-  <body>
-    <form method=post>
-      <center><table>
-        <tr>
-          <td>
-            <textarea name="q" id="typerArea" cols=40 rows=6></textarea></br>
-          </td>
-        </tr>
-        <tr>
-          <td>
-            <table id="rankTable">
-              <tr>
-                <td id="lang0">
-                  <p>Unable to load jQuery, live update disabled.</p>
-                </td><td id="conf0"/>
-              </tr>
-              <tr><td id="lang1"/><td id="conf1"></tr>
-              <tr><td id="lang2"/><td id="conf2"></tr>
-              <tr><td id="lang3"/><td id="conf3"></tr>
-              <tr><td id="lang4"/><td id="conf4"></tr>
-            </table>
-            <input type=submit id="manualSubmit" value="submit">
-          </td>
-        </tr>
-      </table></center>
-    </form>
-
-  </body>
-</html>
-"""
-
-
 def application(environ, start_response):
     """
     WSGI-compatible langid web service.
     """
+    from wsgiref.util import shift_path_info
     try:
         path = shift_path_info(environ)
     except IndexError:
@@ -402,21 +331,16 @@ def application(environ, start_response):
         if data is not None:
             if path == 'detect':
                 pred, conf = classify(data)
-                responseData = {'language': pred, 'confidence': conf}
+                response_data = {'language': pred, 'confidence': conf}
             elif path == 'rank':
-                responseData = rank(data)
+                response_data = rank(data)
 
             status = '200 OK'  # HTTP Status
             response = {
-              'responseData': responseData,
+              'responseData': response_data,
               'responseStatus': 200,
               'responseDetails': None,
             }
-    elif path == 'demo':
-        status = '200 OK'  # HTTP Status
-        headers = [('Content-type', 'text/html; charset=utf-8')]  # HTTP Headers
-        start_response(status, headers)
-        return [query_form.format(**environ)]
 
     else:
         # Incorrect URL
@@ -430,6 +354,11 @@ def application(environ, start_response):
 
 def main():
 
+    # lazy imports
+    import argparse
+    import sys
+
+    # parse arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--serve', action='store_true', default=False, dest='serve', help='launch web service')
     parser.add_argument('--host', default=None, dest='host', help='host/ip to bind to')
@@ -439,7 +368,6 @@ def main():
     parser.add_argument('-l', '--langs', dest='langs', help='comma-separated set of target ISO639 language codes (e.g en,de)')
     parser.add_argument('-r', '--remote', action="store_true", default=False, help='auto-detect IP address for remote access')
     parser.add_argument('-b', '--batch', action="store_true", default=False, help='specify a list of files on the command line')
-    parser.add_argument('--demo', action="store_true", default=False, help='launch an in-browser demo application')
     parser.add_argument('-d', '--dist', action='store_true', default=False, help='show full distribution over languages')
     parser.add_argument('-u', '--url', help='langid of URL')
     parser.add_argument('--line', action="store_true", default=False, help='process pipes line-by-line rather than as a document')
@@ -462,7 +390,7 @@ def main():
             IDENTIFIER = LanguageIdentifier.from_modelpath(options.model, norm_probs=options.normalize)
             LOGGER.info("Using external model: %s", options.model)
         except IOError as e:
-            LOGGER.warning("Failed to load %s: %s" % (options.model, e))
+            LOGGER.warning("Failed to load %s: %s", options.model, e)
 
     if IDENTIFIER is None:
         IDENTIFIER = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=options.normalize)
@@ -479,64 +407,50 @@ def main():
         return IDENTIFIER.rank(text) if options.dist else IDENTIFIER.classify(text)
 
     if options.url:
-        import contextlib
         from urllib.request import urlopen
-        with contextlib.closing(urlopen(options.url)) as url:
+        with urlopen(options.url) as url:
             text = url.read()
             output = _process(text)
             print(options.url, len(text), output)
 
-    elif options.serve or options.demo:
+    elif options.serve:
+        import socket
+        from wsgiref.simple_server import make_server
+
         # from http://stackoverflow.com/questions/166506/finding-local-ip-addresses-in-python
         if options.remote and options.host is None:
             # resolve the external ip address
-            import socket
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("google.com", 80))
             hostname = s.getsockname()[0]
         elif options.host is None:
             # resolve the local hostname
-            import socket
             hostname = socket.gethostbyname(socket.gethostname())
         else:
             hostname = options.host
 
-        if options.demo:
-            import webbrowser
-            webbrowser.open('http://{0}:{1}/demo'.format(hostname, options.port))
+        print("Listening on %s:%d" % (hostname, int(options.port)))
+        print("Press Ctrl+C to exit")
+        httpd = make_server(hostname, int(options.port), application)
         try:
-            # Use fapws3 if available
-            import fapws._evwsgi as evwsgi
-            from fapws import base
-            evwsgi.start(hostname, str(options.port))
-            evwsgi.set_base_module(base)
-            evwsgi.wsgi_cb(('', application))
-            evwsgi.set_debug(0)
-            evwsgi.run()
-        except ImportError:
-            print("Listening on %s:%d" % (hostname, int(options.port)))
-            print("Press Ctrl+C to exit")
-            httpd = make_server(hostname, int(options.port), application)
-            try:
-                httpd.serve_forever()
-            except KeyboardInterrupt:
-                pass
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            pass
+
     elif options.batch:
         # Start in batch mode - interpret input as paths rather than content
         # to classify.
         import csv
-        import os
-        import sys
-        import multiprocessing as mp
+        from multiprocessing import Pool
 
         def generate_paths():
             for line in sys.stdin:
                 path = line.strip()
-                if path and os.path.isfile(path):
+                if path and Path.is_file(path):
                     yield path
 
         writer = csv.writer(sys.stdout)
-        with mp.Pool() as pool:
+        with Pool() as pool:
             if options.dist:
                 writer.writerow(['path'] + IDENTIFIER.nb_classes)
                 for path, ranking in pool.imap_unordered(rank_path, generate_paths()):
@@ -547,7 +461,6 @@ def main():
                 for path, (lang, conf) in pool.imap_unordered(cl_path, generate_paths()):
                     writer.writerow((path, lang, conf))
     else:
-        import sys
         if sys.stdin.isatty():
             # Interactive mode
             while True:

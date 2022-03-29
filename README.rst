@@ -163,7 +163,6 @@ optional arguments:
                         (e.g en,de)
   -r, --remote          auto-detect IP address for remote access
   -b, --batch           specify a list of files on the command line
-  --demo                launch an in-browser demo application
   -d, --dist            show full distribution over languages
   -u URL, --url=URL     langid of URL
   --line                process pipes line-by-line rather than as a document
