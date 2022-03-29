@@ -10,12 +10,13 @@ See LICENSE file for more info.
 """
 
 import argparse
-import base64
 import bz2
 import json
 import logging
 import lzma
+import pickle
 
+from base64 import b64decode
 from collections import Counter
 from pathlib import Path
 from urllib.parse import parse_qs
@@ -25,29 +26,29 @@ from wsgiref.util import shift_path_info
 
 import numpy as np
 
-# cpickle on Python3
-try:
-    import _pickle as pickle
-# default
-except ImportError:
-    import pickle
 
+LOGGER = logging.getLogger(__name__)
 
-logger = logging.getLogger(__name__)
-
-# Convenience methods defined below will initialize this when first called.
+# model defaults
 IDENTIFIER = None
 MODEL_FILE = 'data/model.plzma'
-
-# Defaults for inbuilt server
-HOST = None  # leave as none for auto-detect
-PORT = 9008
-FORCE_WSGIREF = False
-
 NORM_PROBS = False  # Normalize output probabilities.
 # NORM_PROBS defaults to False for a small speed increase. It does not
 # affect the relative ordering of the predicted classes. It can be
 # re-enabled at runtime - see the readme.
+
+
+def load_model(path=None):
+    """
+    Convenience method to set the global identifier using a model at a
+    specified path.
+
+    @param path to model
+    """
+    LOGGER.debug('initializing identifier')
+    if path is None:
+        return LanguageIdentifier.from_pickled_model(MODEL_FILE)
+    return LanguageIdentifier.from_modelpath(path)
 
 
 def set_languages(langs=None):
@@ -59,7 +60,6 @@ def set_languages(langs=None):
     global IDENTIFIER
     if IDENTIFIER is None:
         IDENTIFIER = load_model()
-
     return IDENTIFIER.set_languages(langs)
 
 
@@ -75,7 +75,6 @@ def classify(instance):
     global IDENTIFIER
     if IDENTIFIER is None:
         IDENTIFIER = load_model()
-
     return IDENTIFIER.classify(instance)
 
 
@@ -91,7 +90,6 @@ def rank(instance):
     global IDENTIFIER
     if IDENTIFIER is None:
         IDENTIFIER = load_model()
-
     return IDENTIFIER.rank(instance)
 
 
@@ -107,7 +105,6 @@ def cl_path(path):
     global IDENTIFIER
     if IDENTIFIER is None:
         IDENTIFIER = load_model()
-
     return IDENTIFIER.cl_path(path)
 
 
@@ -123,27 +120,15 @@ def rank_path(path):
     global IDENTIFIER
     if IDENTIFIER is None:
         IDENTIFIER = load_model()
-
     return IDENTIFIER.rank_path(path)
-
-
-def load_model(path=None):
-    """
-    Convenience method to set the global identifier using a model at a
-    specified path.
-
-    @param path to model
-    """
-    logger.debug('initializing identifier')
-    if path is None:
-        return LanguageIdentifier.from_pickled_model(MODEL_FILE)
-    return LanguageIdentifier.from_modelpath(path)
 
 
 class LanguageIdentifier:
     """
     This class implements the actual language identifier.
     """
+    __slots__ = ['nb_ptc', 'nb_pc', 'nb_numfeats', 'nb_classes', 'tk_nextmove', 'tk_output',
+                 'norm_probs', '__full_model']
 
     # new version: speed-up
     @classmethod
@@ -164,7 +149,7 @@ class LanguageIdentifier:
     @classmethod
     def from_modelstring(cls, string, *args, **kwargs):
         # load data
-        nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = pickle.loads(bz2.decompress(base64.b64decode(string)))
+        nb_ptc, nb_pc, nb_classes, tk_nextmove, tk_output = pickle.loads(bz2.decompress(b64decode(string)))
         nb_numfeats = len(nb_ptc) // len(nb_pc)
 
         # reconstruct pc and ptc
@@ -212,7 +197,7 @@ class LanguageIdentifier:
         self.__full_model = nb_ptc, nb_pc, nb_classes
 
     def set_languages(self, langs=None):
-        logger.debug("restricting languages to: %s", langs)
+        LOGGER.debug("restricting languages to: %s", langs)
 
         # Unpack the full original model. This is needed in case the language set
         # has been previously trimmed, and the new set is not a subset of the current
@@ -447,8 +432,8 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-s', '--serve', action='store_true', default=False, dest='serve', help='launch web service')
-    parser.add_argument('--host', default=HOST, dest='host', help='host/ip to bind to')
-    parser.add_argument('--port', default=PORT, dest='port', help='port to listen on')
+    parser.add_argument('--host', default=None, dest='host', help='host/ip to bind to')
+    parser.add_argument('--port', default=9008, dest='port', help='port to listen on')
     parser.add_argument('-v', action='count', dest='verbosity', help='increase verbosity (repeat for greater effect)')
     parser.add_argument('-m', dest='model', help='load model from file')
     parser.add_argument('-l', '--langs', dest='langs', help='comma-separated set of target ISO639 language codes (e.g en,de)')
@@ -471,16 +456,17 @@ def main():
 
     # unpack a model
     global IDENTIFIER
+
     if options.model:
         try:
             IDENTIFIER = LanguageIdentifier.from_modelpath(options.model, norm_probs=options.normalize)
-            logger.info("Using external model: %s", options.model)
+            LOGGER.info("Using external model: %s", options.model)
         except IOError as e:
-            logger.warning("Failed to load %s: %s" % (options.model, e))
+            LOGGER.warning("Failed to load %s: %s" % (options.model, e))
 
     if IDENTIFIER is None:
         IDENTIFIER = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=options.normalize)
-        logger.info("Using internal model")
+        LOGGER.info("Using internal model")
 
     if options.langs:
         langs = options.langs.split(",")
@@ -519,8 +505,6 @@ def main():
             import webbrowser
             webbrowser.open('http://{0}:{1}/demo'.format(hostname, options.port))
         try:
-            if FORCE_WSGIREF:
-                raise ImportError
             # Use fapws3 if available
             import fapws._evwsgi as evwsgi
             from fapws import base
