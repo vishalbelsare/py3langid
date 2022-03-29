@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 LDfeatureselect.py -
 LD (Lang-Domain) feature extractor

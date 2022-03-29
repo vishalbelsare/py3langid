@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 index.py -
 Index a corpus that is stored in a directory hierarchy as follows:
@@ -74,7 +73,7 @@ class CorpusIndexer(object):
     """
     Class to index the contents of a corpus
     """
-    def __init__(self, root, min_domain=MIN_DOMAIN, proportion=TRAIN_PROP, langs=None, domains=None, line_level=False):
+    def __init__(self, root, min_domain=MIN_DOMAIN, proportion=TRAIN_PROP, langs=None, domains=None):
         self.root = root
         self.min_domain = min_domain
         self.proportion = proportion
@@ -83,93 +82,50 @@ class CorpusIndexer(object):
             self.lang_index = defaultdict(Enumerator())
         else:
             # pre-specified lang set
-            self.lang_index = {k: v for v,k in enumerate(langs)}
+            self.lang_index = {(k,v) for v,k in enumerate(langs)}
 
         if domains is None:
             self.domain_index = defaultdict(Enumerator())
         else:
             # pre-specified domain set
-            self.domain_index = {k: v for v,k in enumerate(domains)}
+            self.domain_index = dict((k,v) for v,k in enumerate(domains))
 
         self.coverage_index = defaultdict(set)
-        self.items = []
+        self.items = list()
 
-        if os.path.isdir(root):
-            # root supplied was the root of a directory structure
-            candidates = []
-            for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
-                for docname in filenames:
-                    candidates.append(os.path.join(dirpath, docname))
-        else:
-            # root supplied was a file, interpet as list of paths
-            candidates = map(str.strip, open(root))
-
-        if line_level:
-            self.index_line(candidates)
-        else:
-            self.index(candidates)
-
+        self.index(root)
         self.prune_min_domain(self.min_domain)
 
-    def index_line(self, candidates):
-        """
-        Line-level indexing. Assumes the list of candidates is file-per-class,
-        where each line is a document.
-        """
-        if self.proportion < 1.0:
-            raise NotImplementedError("proportion selection not available for file-per-class")
+    def index(self, root):
+        # build a list of paths
+        paths = []
+        for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
+            for docname in filenames:
+                if random.random() < self.proportion:
+                    # Each file has 'proportion' chance of being selected.
+                    path = os.path.join(dirpath, docname)
 
-        for path in candidates:
-            d, lang = os.path.split(path)
-            d, domain = os.path.split(d)
+                    # split the dirpath into identifying components
+                    d, lang = os.path.split(dirpath)
+                    d, domain = os.path.split(d)
 
-            # index the language and the domain
-            try:
-                # TODO: If lang is pre-specified but not domain, we can end up
-                #       enumerating empty domains.
-                domain_id = self.domain_index[domain]
-                lang_id = self.lang_index[lang]
-            except KeyError:
-                # lang or domain outside a pre-specified set so
-                # skip this document.
-                continue
+                    # index the language and the domain
+                    try:
+                        # TODO: If lang is pre-specified but not domain, we can end up
+                        #       enumerating empty domains.
+                        domain_id = self.domain_index[domain]
+                        lang_id = self.lang_index[lang]
+                    except KeyError:
+                        # lang or domain outside a pre-specified set so
+                        # skip this document.
+                        continue
 
-            # add the domain-lang relation to the coverage index
-            self.coverage_index[domain].add(lang)
+                    # add the domain-lang relation to the coverage index
+                    self.coverage_index[domain].add(lang)
 
-            with open(path) as f:
-                for i,row in enumerate(f):
-                    docname = "line{0}".format(i)
+                    # add the item to our list
                     self.items.append((domain_id,lang_id,docname,path))
 
-    def index(self, candidates):
-
-        # build a list of paths
-        for path in candidates:
-            # Each file has 'proportion' chance of being selected.
-            if random.random() < self.proportion:
-
-                # split the path into identifying components
-                d, docname = os.path.split(path)
-                d, lang = os.path.split(d)
-                d, domain = os.path.split(d)
-
-                # index the language and the domain
-                try:
-                    # TODO: If lang is pre-specified but not domain, we can end up
-                    #       enumerating empty domains.
-                    domain_id = self.domain_index[domain]
-                    lang_id = self.lang_index[lang]
-                except KeyError:
-                    # lang or domain outside a pre-specified set so
-                    # skip this document.
-                    continue
-
-                # add the domain-lang relation to the coverage index
-                self.coverage_index[domain].add(lang)
-
-                # add the item to our list
-                self.items.append((domain_id,lang_id,docname,path))
 
     def prune_min_domain(self, min_domain):
         # prune files for all languages that do not occur in at least min_domain
@@ -180,18 +136,15 @@ class CorpusIndexer(object):
         for langs in self.coverage_index.values():
             for lang in langs:
                 lang_domain_count[lang] += 1
-        reject_langs = {
-            l
-            for l in lang_domain_count if lang_domain_count[l] < min_domain
-        }
+        reject_langs = set( l for l in lang_domain_count if lang_domain_count[l] < min_domain)
 
         # Remove the languages from the indexer
         if reject_langs:
             #print "reject (<{0} domains): {1}".format(min_domain, sorted(reject_langs))
-            reject_ids = {self.lang_index[l] for l in reject_langs}
+            reject_ids = set(self.lang_index[l] for l in reject_langs)
 
             new_lang_index = defaultdict(Enumerator())
-            lm = {}
+            lm = dict()
             for k,v in self.lang_index.items():
                 if v not in reject_ids:
                     new_id = new_lang_index[k]
@@ -223,10 +176,28 @@ class CorpusIndexer(object):
             retval[d] += 1
         return retval
 
+    # TODO: Remove this as it should no longer be needed
+    @property
+    def classmaps(self):
+        num_instances = len(self.items)
+        if num_instances == 0:
+            raise ValueError("no items indexed!")
+        cm_domain = numpy.zeros((num_instances, len(self.domain_index)), dtype='bool')
+        cm_lang = numpy.zeros((num_instances, len(self.lang_index)), dtype='bool')
+
+        # Populate the class maps
+        for docid, (domain_id, lang_id, docname, path) in enumerate(self.items):
+            cm_domain[docid, domain_id] = True
+            cm_lang[docid, lang_id] = True
+        return cm_domain, cm_lang
+
+    @property
+    def paths(self):
+        return [ p for (d,l,n,p) in self.items ]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--line", action="store_true",
-        help="treat each line in a file as a document")
     parser.add_argument("-p","--proportion", type=float, default=TRAIN_PROP,
         help="proportion of training data to use" )
     parser.add_argument("-m","--model", help="save output to MODEL_DIR", metavar="MODEL_DIR")
@@ -253,30 +224,27 @@ if __name__ == "__main__":
     index_path = os.path.join(model_dir, 'paths')
 
     # display paths
-    print "corpus path:", args.corpus
-    print "model path:", model_dir
-    print "writing langs to:", langs_path
-    print "writing domains to:", domains_path
-    print "writing index to:", index_path
-
-    if args.line:
-        print "indexing documents at the line level"
+    print("corpus path:", args.corpus)
+    print("model path:", model_dir)
+    print("writing langs to:", langs_path)
+    print("writing domains to:", domains_path)
+    print("writing index to:", index_path)
 
     indexer = CorpusIndexer(args.corpus, min_domain=args.min_domain, proportion=args.proportion,
-                            langs = args.lang, domains = args.domain, line_level=args.line)
+                            langs = args.lang, domains = args.domain)
 
     # Compute mappings between files, languages and domains
     lang_dist = indexer.dist_lang
     lang_index = indexer.lang_index
     lang_info = ' '.join(("{0}({1})".format(k, lang_dist[v]) for k,v in lang_index.items()))
-    print "langs({0}): {1}".format(len(lang_dist), lang_info)
+    print("langs({0}): {1}".format(len(lang_dist), lang_info))
 
     domain_dist = indexer.dist_domain
     domain_index = indexer.domain_index
     domain_info = ' '.join(("{0}({1})".format(k, domain_dist[v]) for k,v in domain_index.items()))
-    print "domains({0}): {1}".format(len(domain_dist), domain_info)
+    print("domains({0}): {1}".format(len(domain_dist), domain_info))
 
-    print "identified {0} documents".format(len(indexer.items))
+    print("identified {0} files".format(len(indexer.items)))
 
     # output the language index
     with open(langs_path,'w') as f:
@@ -293,4 +261,4 @@ if __name__ == "__main__":
     # output items found
     with open(index_path,'w') as f:
         writer = csv.writer(f)
-        writer.writerows( sorted(set((d,l,p) for (d,l,n,p) in indexer.items)) )
+        writer.writerows( (d,l,p) for (d,l,n,p) in indexer.items )

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 train.py -
 All-in-one tool for easy training of a model for langid.py. This depends on the
@@ -54,7 +53,8 @@ from DFfeatureselect import tally, ngram_select
 from IGweight import compute_IG
 from LDfeatureselect import select_LD_features
 from scanner import build_scanner, Scanner
-from NBtrain import learn_nb_params
+
+from NBtrain import generate_cm, learn_pc, learn_ptc
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -77,7 +77,6 @@ if __name__ == "__main__":
     parser.add_argument("--feats_per_lang", type=int, metavar='N', help="select top N features for each language", default=FEATURES_PER_LANG)
     parser.add_argument("--no_domain_ig", action="store_true", default=False, help="use only per-langugage IG in LD calculation")
     parser.add_argument("--debug", action="store_true", default=False, help="produce debug output (all intermediates)")
-    parser.add_argument("--line", action="store_true", help="treat each line in a file as a document")
 
     group = parser.add_argument_group('sampling')
     group.add_argument("--sample_size", type=int, help="size of sample for sampling-based tokenization", default=140)
@@ -86,9 +85,6 @@ if __name__ == "__main__":
     parser.add_argument("corpus", help="read corpus from CORPUS_DIR", metavar="CORPUS_DIR")
 
     args = parser.parse_args()
-
-    if args.sample_count and args.line:
-        parser.error("sampling in line mode is not implemented")
 
     if args.df_feats and args.ld_feats:
         parser.error("--df_feats and --ld_feats are mutually exclusive")
@@ -101,36 +97,32 @@ if __name__ == "__main__":
 
     makedir(model_dir)
 
+    langs_path = os.path.join(model_dir, 'lang_index')
+    domains_path = os.path.join(model_dir, 'domain_index')
+    index_path = os.path.join(model_dir, 'paths')
+
     # display paths
-    print "corpus path:", args.corpus
-    print "model path:", model_dir
+    print("corpus path:", args.corpus)
+    print("model path:", model_dir)
 
     indexer = CorpusIndexer(args.corpus, min_domain=args.min_domain, proportion=args.proportion,
-                            langs = args.lang, domains = args.domain, line_level=args.line)
+                            langs = args.lang, domains = args.domain)
 
     # Compute mappings between files, languages and domains
     lang_dist = indexer.dist_lang
     lang_index = indexer.lang_index
     lang_info = ' '.join(("{0}({1})".format(k, lang_dist[v]) for k,v in lang_index.items()))
-    print "langs({0}): {1}".format(len(lang_dist), lang_info)
+    print("langs({0}): {1}".format(len(lang_dist), lang_info))
 
     domain_dist = indexer.dist_domain
     domain_index = indexer.domain_index
     domain_info = ' '.join(("{0}({1})".format(k, domain_dist[v]) for k,v in domain_index.items()))
-    print "domains({0}): {1}".format(len(domain_dist), domain_info)
+    print("domains({0}): {1}".format(len(domain_dist), domain_info))
 
-    print "identified {0} documents".format(len(indexer.items))
+    print("identified {0} files".format(len(indexer.items)))
 
-    if args.line:
-        print "treating each LINE as a document"
-
-    items = sorted(set( (d,l,p) for (d,l,n,p) in indexer.items ))
-    indexer = None
+    items = [ (d,l,p) for (d,l,n,p) in indexer.items ]
     if args.debug:
-        langs_path = os.path.join(model_dir, 'lang_index')
-        domains_path = os.path.join(model_dir, 'domain_index')
-        index_path = os.path.join(model_dir, 'paths')
-
         # output the language index
         with open(langs_path,'w') as f:
             writer = csv.writer(f)
@@ -154,6 +146,8 @@ if __name__ == "__main__":
         buckets_dir = os.path.join(model_dir, 'buckets')
     makedir(buckets_dir)
 
+    bucketlist_path = os.path.join(model_dir, 'bucketlist')
+    index_path = os.path.join(model_dir, 'paths')
 
     if args.ld_feats:
         # LD features are pre-specified. We are basically just building the NB model.
@@ -164,28 +158,25 @@ if __name__ == "__main__":
 
         # Tokenize
         DFfeats = None
-        print "will tokenize %d documents" % len(items)
+        print("will tokenize %d files" % len(items))
         # TODO: Custom tokenizer if doing custom first-pass features
         if args.df_feats:
-            print "reading custom features from:", args.df_feats
+            print("reading custom features from:", args.df_feats)
             DFfeats = read_features(args.df_feats)
-            print "building tokenizer for custom list of {0} features".format(len(DFfeats))
+            print("building tokenizer for custom list of {0} features".format(len(DFfeats)))
             tk = Scanner(DFfeats)
         elif args.word:
-            print "using word tokenizer"
+            print("using word tokenizer")
             tk = str.split
         else:
-            print "using byte NGram tokenizer, max_order: {0}".format(args.max_order)
+            print("using byte NGram tokenizer, max_order: {0}".format(args.max_order))
             tk = NGramTokenizer(1, args.max_order)
 
         # First-pass tokenization, used to determine DF of features
-        tk_dir = os.path.join(buckets_dir, 'tokenize-pass1')
-        makedir(tk_dir)
-        b_dirs = build_index(items, tk, tk_dir, args.buckets, args.jobs, args.chunksize, args.sample_count, args.sample_size, args.line)
+        b_dirs = build_index(items, tk, buckets_dir, args.buckets, args.jobs, args.chunksize, args.sample_count, args.sample_size)
 
         if args.debug:
             # output the paths to the buckets
-            bucketlist_path = os.path.join(model_dir, 'bucketlist')
             with open(bucketlist_path,'w') as f:
                 for d in b_dirs:
                     f.write(d+'\n')
@@ -198,7 +189,7 @@ if __name__ == "__main__":
             if args.debug:
                 doc_count_path = os.path.join(model_dir, 'DF_all')
                 write_weights(doc_count, doc_count_path)
-                print "wrote DF counts for all features to:", doc_count_path
+                print("wrote DF counts for all features to:", doc_count_path)
 
         if DFfeats is None:
             # Choose the first-stage features
@@ -208,27 +199,24 @@ if __name__ == "__main__":
         if args.debug:
             feature_path = os.path.join(model_dir, 'DFfeats')
             write_features(DFfeats, feature_path)
-            print 'wrote features to "%s"' % feature_path
+            print('wrote features to "%s"' % feature_path )
 
         # Dispose of the first-pass tokenize output as it is no longer
         # needed.
         if not args.debug:
-            shutil.rmtree(tk_dir)
+            for b in b_dirs:
+                shutil.rmtree(b)
 
         # Second-pass tokenization to only obtain counts for the selected features.
         # As the first-pass set is typically much larger than the second pass, it often
         # works out to be faster to retokenize the raw documents rather than iterate
         # over the first-pass counts.
         DF_scanner = Scanner(DFfeats)
-        df_dir = os.path.join(buckets_dir, 'tokenize-pass2')
-        makedir(df_dir)
-        b_dirs = build_index(items, DF_scanner, df_dir, args.buckets, args.jobs, args.chunksize)
-        b_dirs = [[d] for d in b_dirs]
+        b_dirs = build_index(items, DF_scanner, buckets_dir, args.buckets, args.jobs, args.chunksize)
         DF_scanner = None
 
         # Build vectors of domain and language distributions for use in IG calculation
-        if not args.no_domain_ig:
-            domain_dist_vec = numpy.array([ domain_dist[domain_index[d]]
+        domain_dist_vec = numpy.array([ domain_dist[domain_index[d]]
                 for d in sorted(domain_index, key=domain_index.get)], dtype=int)
         domain_dist = None
         lang_dist_vec = numpy.array([ lang_dist[lang_index[l]]
@@ -244,31 +232,32 @@ if __name__ == "__main__":
 
         ig_vals = {}
         for label, dist, suffix, binarize in ig_params:
-            print "Computing information gain for {0}".format(label)
+            print("Computing information gain for {0}".format(label))
             ig = compute_IG(b_dirs, DFfeats, dist, binarize, suffix, args.jobs)
             if args.debug:
                 weights_path = os.path.join(model_dir, 'IGweights' + suffix + ('.bin' if binarize else ''))
                 write_weights(ig, weights_path)
             ig_vals[label] = dict((row[0], numpy.array(row[1].flat)) for row in ig)
-            ig = None
-        DFfeats = None
 
+        ig = None
+        DFfeats = None
         # Select features according to the LD criteria
         features_per_lang = select_LD_features(ig_vals['lang'], ig_vals.get('domain'), args.feats_per_lang, ignore_domain = args.no_domain_ig)
         ig_vals = None
         LDfeats = reduce(set.union, map(set, features_per_lang.values()))
-        print 'selected %d features' % len(LDfeats)
+        print('selected %d features' % len(LDfeats))
 
         if args.debug:
             feature_path = os.path.join(model_dir, 'LDfeats')
             write_features(sorted(LDfeats), feature_path)
-            print 'wrote LD features to "%s"' % feature_path
+            print('wrote LD features to "%s"' % feature_path )
 
             with open(feature_path + '.perlang', 'w') as f:
                 writer = csv.writer(f)
                 for i in range(len(features_per_lang)):
                     writer.writerow(map(repr,features_per_lang[i]))
-            print 'wrote LD.perlang features to "%s"' % feature_path + '.perlang'
+
+            print('wrote LD.perlang features to "%s"' % feature_path + '.perlang')
         features_per_lang = None
 
     # Compile a scanner for the LDfeats
@@ -277,17 +266,21 @@ if __name__ == "__main__":
         scanner_path = feature_path + '.scanner'
         with open(scanner_path, 'w') as f:
             cPickle.dump((tk_nextmove, tk_output, LDfeats), f)
-        print "wrote scanner to {0}".format(scanner_path)
+
+        print("wrote scanner to {0}".format(scanner_path))
+
     LDfeats = None
 
     # Assemble the NB model
     langs = sorted(lang_index, key=lang_index.get)
     lang_index = None
 
+    cm = generate_cm([ (l,p) for d,l,p in items], len(langs))
+    paths = zip(*items)[2]
+
     nb_classes = langs
-    nb_dir = os.path.join(buckets_dir, 'NBtrain')
-    makedir(nb_dir)
-    nb_pc, nb_ptc = learn_nb_params([(int(l),p) for _, l, p in items], len(langs), tk_nextmove, tk_output, nb_dir, args)
+    nb_pc = learn_pc(cm)
+    nb_ptc = learn_ptc(paths, tk_nextmove, tk_output, cm, buckets_dir, args)
 
     # output the model
     output_path = os.path.join(model_dir, 'model')
@@ -295,11 +288,13 @@ if __name__ == "__main__":
     string = base64.b64encode(bz2.compress(cPickle.dumps(model)))
     with open(output_path, 'w') as f:
         f.write(string)
-    print "wrote model to %s (%d bytes)" % (output_path, len(string))
+
+    print("wrote model to %s (%d bytes)" % (output_path, len(string)))
 
     # remove buckets if debug is off. We don't generate buckets if ldfeats is supplied.
     if not args.debug and not args.ld_feats:
-        shutil.rmtree(df_dir)
+        for b in b_dirs:
+            shutil.rmtree(b)
         if not args.temp:
             # Do not remove the buckets dir if temp was supplied as we don't know
             # if we created it.

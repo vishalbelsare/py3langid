@@ -6,8 +6,6 @@ Marco Lui, January 2013
 
 from itertools import islice
 import marshal
-import tempfile
-import gzip
 
 class Enumerator(object):
     """
@@ -36,12 +34,10 @@ def unmarshal_iter(path):
     """
     Open a given path and yield an iterator over items unmarshalled from it.
     """
-    with gzip.open(path, 'rb') as f, tempfile.TemporaryFile() as t:
-        t.write(f.read())
-        t.seek(0)
+    with open(path, 'rb') as f:
         while True:
             try:
-                yield marshal.load(t)
+                yield marshal.load(f)
             except EOFError:
                 break
 
@@ -54,18 +50,16 @@ def makedir(path):
             raise
 
 import csv
-def write_weights(weights, path, sort_by_weight=False):
+
+def write_weights(weights, path):
     w = dict(weights)
     with open(path, 'w') as f:
         writer = csv.writer(f)
-        if sort_by_weight:
-            try:
-                key_order = sorted(w, key=w.get, reverse=True)
-            except ValueError:
-                # Could not order keys by value, value is probably a vector.
-                # Order keys alphabetically in this case.
-                key_order = sorted(w)
-        else:
+        try:
+            key_order = sorted(w, key=w.get, reverse=True)
+        except ValueError:
+            # Could not order keys by value, value is probably a vector.
+            # Order keys alphabetically in this case.
             key_order = sorted(w)
 
         for k in key_order:
@@ -106,7 +100,7 @@ def write_features(features, path):
     """
     with open(path,'w') as f:
         for feat in features:
-            print >>f, repr(feat)
+            print(repr(feat),file=f)
 
 
 def index(seq):
@@ -116,8 +110,7 @@ def index(seq):
     @param seq the sequence to index
     @returns a dictionary from item to position in the sequence
     """
-    return {k: v for (v,k) in enumerate(seq)}
-
+    return {(k,v) for (v,k) in enumerate(seq)}
 
 
 from itertools import imap

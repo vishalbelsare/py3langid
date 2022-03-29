@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 DFfeatureselect.py -
 First step in the LD feature selection process, select features based on document
@@ -51,7 +50,6 @@ import numpy
 import cPickle
 import multiprocessing as mp
 import atexit
-import gzip
 from itertools import tee, imap, islice
 from collections import defaultdict
 from datetime import datetime
@@ -66,7 +64,7 @@ def pass_sum_df(bucket):
     """
     doc_count = defaultdict(int)
     count = 0
-    with gzip.open(os.path.join(bucket, "docfreq"),'wb') as docfreq:
+    with open(os.path.join(bucket, "docfreq"),'wb') as docfreq:
         for path in os.listdir(bucket):
             # We use the domain buckets as there are usually less domains
             if path.endswith('.domain'):
@@ -89,7 +87,7 @@ def tally(bucketlist, jobs=None):
         pass_sum_df_out = f(pass_sum_df, bucketlist)
 
         for i, keycount in enumerate(pass_sum_df_out):
-            print "processed bucket (%d/%d) [%d keys]" % (i+1, len(bucketlist), keycount)
+            print("processed bucket (%d/%d) [%d keys]" % (i+1, len(bucketlist), keycount))
 
     # build the global term->df mapping
     doc_count = {}
@@ -108,7 +106,7 @@ def ngram_select(doc_count, max_order=MAX_NGRAM_ORDER, tokens_per_order=TOKENS_P
     # Work out the set of features to compute IG
     features = set()
     for i in range(1, max_order+1):
-        d = {k: doc_count[k] for k in doc_count if len(k) == i}
+        d = dict( (k, doc_count[k]) for k in doc_count if len(k) == i)
         features |= set(sorted(d, key=d.get, reverse=True)[:tokens_per_order])
     features = sorted(features)
 
@@ -124,7 +122,6 @@ if __name__ == "__main__":
     parser.add_argument("--tokens", metavar='N', type=int, help="consider top N tokens")
     parser.add_argument("--max_order", type=int, help="highest n-gram order to use", default=MAX_NGRAM_ORDER)
     parser.add_argument("--doc_count", nargs='?', const=True, metavar='DOC_COUNT_PATH', help="output full mapping of feature->frequency to DOC_COUNT_PATH")
-    parser.add_argument("--bucketlist", help="read list of buckets from")
     parser.add_argument("model", metavar='MODEL_DIR', help="read index and produce output in MODEL_DIR")
 
     args = parser.parse_args()
@@ -141,30 +138,27 @@ if __name__ == "__main__":
     else:
         feature_path = os.path.join(args.model, 'DFfeats')
 
-    if args.bucketlist:
-        bucketlist_path = args.bucketlist
-    else:
-        bucketlist_path = os.path.join(args.model, 'bucketlist')
+    bucketlist_path = os.path.join(args.model, 'bucketlist')
 
     # display paths
-    print "buckets path:", bucketlist_path
-    print "features output path:", feature_path
+    print("buckets path:", bucketlist_path)
+    print("features output path:", feature_path)
     if args.tokens_per_order:
-        print "max ngram order:", args.max_order
-        print "tokens per order:", args.tokens_per_order
+        print("max ngram order:", args.max_order)
+        print("tokens per order:", args.tokens_per_order)
     else:
-        print "tokens:", args.tokens
+        print("tokens:", args.tokens)
 
     with open(bucketlist_path) as f:
         bucketlist = map(str.strip, f)
 
     doc_count = tally(bucketlist, args.jobs)
-    print "unique features:", len(doc_count)
+    print("unique features:", len(doc_count))
     if args.doc_count:
         # The constant true is used to indicate output to default location
         doc_count_path = os.path.join(args.model, 'DF_all') if args.doc_count == True else args.doc_count
         write_weights(doc_count, doc_count_path)
-        print "wrote DF counts for all features to:", doc_count_path
+        print("wrote DF counts for all features to:", doc_count_path)
 
     if args.tokens_per_order:
         # Choose a number of features for each length of token
@@ -172,7 +166,8 @@ if __name__ == "__main__":
     else:
         # Choose a number of features overall
         feats = sorted( sorted(doc_count, key=doc_count.get, reverse=True)[:args.tokens] )
-    print "selected features: ", len(feats)
+
+    print("selected features: ", len(feats))
 
     write_features(feats, feature_path)
-    print 'wrote features to "%s"' % feature_path
+    print('wrote features to "%s"' % feature_path)

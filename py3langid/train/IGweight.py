@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 """
 IGWeight.py -
 Compute IG Weights given a set of tokenized buckets and a feature set
@@ -52,14 +51,16 @@ def entropy(v, axis=0):
     v = numpy.array(v, dtype='float')
     s = numpy.sum(v, axis=axis)
     with numpy.errstate(divide='ignore', invalid='ignore'):
-        log = numpy.nan_to_num(numpy.log(v))
-        rhs = numpy.nansum(v * log, axis=axis) / s
+        rhs = numpy.nansum(v * numpy.log(v), axis=axis) / s
         r = numpy.log(s) - rhs
     # Where dealing with binarized events, it is possible that an event always
     # occurs and thus has 0 information. In this case, the negative class
     # will have frequency 0, resulting in log(0) being computed as nan.
     # We replace these nans with 0
-    return numpy.nan_to_num(r)
+    nan_index = numpy.isnan(rhs)
+    if nan_index.any():
+        r[nan_index] = 0
+    return r
 
 def setup_pass_IG(features, dist, binarize, suffix):
     """
@@ -74,7 +75,7 @@ def setup_pass_IG(features, dist, binarize, suffix):
     __binarize = binarize
     __suffix = suffix
 
-def pass_IG(buckets):
+def pass_IG(bucket):
     """
     In this pass we compute the information gain for each feature, binarized
     with respect to each language as well as unified over the set of all
@@ -84,9 +85,7 @@ def pass_IG(buckets):
     @global __dist the background distribution
     @global __binarize (boolean) compute IG binarized per-class if True
     @global __suffix of files in bucketdir to process
-    @param buckets a list of buckets. Each bucket must be a directory that contains files
-                   with the appropriate suffix. Each file must contain marshalled
-                   (term, event_id, count) triplets.
+    @param bucket the bucket file to process. It is assumed to contain marshalled (term, event_id, count) triplets.
     """
     global __features, __dist, __binarize, __suffix
 
@@ -95,14 +94,13 @@ def pass_IG(buckets):
     term_freq = defaultdict(lambda: defaultdict(int))
     term_index = defaultdict(Enumerator())
 
-    for bucket in buckets:
-        for path in os.listdir(bucket):
-            if path.endswith(__suffix):
-                for key, event_id, count in unmarshal_iter(os.path.join(bucket,path)):
-                    # Select only our listed features
-                    if key in __features:
-                        term_index[key]
-                        term_freq[key][event_id] += count
+    for path in os.listdir(bucket):
+        if path.endswith(__suffix):
+            for key, event_id, count in unmarshal_iter(os.path.join(bucket,path)):
+                # Select only our listed features
+                if key in __features:
+                    term_index[key]
+                    term_freq[key][event_id] += count
 
     num_term = len(term_index)
     num_event = len(__dist)
@@ -188,11 +186,10 @@ if __name__ == "__main__":
     parser.add_argument("-j","--jobs", type=int, metavar='N', help="spawn N processes (set to 1 for no paralleization)")
     parser.add_argument("-f","--features", metavar='FEATURE_FILE', help="read features from FEATURE_FILE")
     parser.add_argument("-w","--weights", metavar='WEIGHTS', help="output weights to WEIGHTS")
+    parser.add_argument("model", metavar='MODEL_DIR', help="read index and produce output in MODEL_DIR")
     parser.add_argument("-d","--domain", action="store_true", default=False, help="compute IG with respect to domain")
     parser.add_argument("-b","--binarize", action="store_true", default=False, help="binarize the event space in the IG computation")
     parser.add_argument("-l","--lang", action="store_true", default=False, help="compute IG with respect to language")
-    parser.add_argument("model", metavar='MODEL_DIR', help="read index and produce output in MODEL_DIR")
-    parser.add_argument("buckets", nargs='*', help="read bucketlist from")
 
     args = parser.parse_args()
     if not(args.domain or args.lang) or (args.domain and args.lang):
@@ -203,14 +200,12 @@ if __name__ == "__main__":
     else:
         feature_path = os.path.join(args.model, 'DFfeats')
 
-    if args.buckets:
-        bucketlist_paths = args.buckets
-    else:
-        bucketlist_paths = [os.path.join(args.model, 'bucketlist')]
+    bucketlist_path = os.path.join(args.model, 'bucketlist')
 
     if not os.path.exists(feature_path):
         parser.error('{0} does not exist'.format(feature_path))
 
+    bucketlist = map(str.strip, open(bucketlist_path))
     features = read_features(feature_path)
 
     if args.domain:
@@ -228,19 +223,14 @@ if __name__ == "__main__":
         weights_path = os.path.join(args.model, 'IGweights' + suffix + ('.bin' if args.binarize else ''))
 
     # display paths
-    print("model path:", args.model)
-    print("buckets path:", bucketlist_paths)
+    print("model path:", args.model )
+    print("buckets path:", bucketlist_path)
     print("features path:", feature_path)
     print("weights path:", weights_path)
     print("index path:", index_path)
     print("suffix:", suffix)
 
     print("computing information gain")
-    # Compile buckets together
-    bucketlist = zip(*(map(str.strip, open(p)) for p in bucketlist_paths))
-
-    # Check that each bucketlist has the same number of buckets
-    assert len(set(map(len,bucketlist))) == 1, "incompatible bucketlists!"
 
     dist = read_dist(index_path)
     ig = compute_IG(bucketlist, features, dist, args.binarize, suffix, args.jobs)
