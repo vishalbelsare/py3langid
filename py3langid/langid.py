@@ -60,7 +60,7 @@ def set_languages(langs=None):
     return IDENTIFIER.set_languages(langs)
 
 
-def classify(instance):
+def classify(instance, datatype='uint16'):
     """
     Convenience method using a global identifier instance with the default
     model included in langid.py. Identifies the language that a string is
@@ -71,7 +71,7 @@ def classify(instance):
     """
     if IDENTIFIER is None:
         load_model()
-    return IDENTIFIER.classify(instance)
+    return IDENTIFIER.classify(instance, datatype=datatype)
 
 
 def rank(instance):
@@ -179,8 +179,8 @@ class LanguageIdentifier:
                 # Windows this causes a RuntimeWarning, so we explicitly
                 # suppress it.
                 with np.errstate(over='ignore'):
-                    # old: pd = (1/np.exp(pd[None,:] - pd[:,None]).sum(1))
-                    pd = (pd - np.min(pd)) / np.ptp(pd)
+                    # legacy formula, there are possibly better alternatives
+                    pd = 1/np.exp(pd[None,:] - pd[:,None]).sum(1)
             return pd
 
         self.norm_probs = apply_norm_probs

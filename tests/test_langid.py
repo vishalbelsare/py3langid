@@ -21,10 +21,16 @@ def test_langid():
     text = 'Test Unicode sur du texte en français'
     assert langid.classify(text)[0] == 'fr'
     assert langid.rank(text)[0][0] == 'fr'
+    # other datatype
+    assert langid.classify(text)[1] != langid.classify(text, datatype='uint32')[1]
     # normalization of probabilities
     identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=True)
-    _, prob = identifier.classify(text)
-    assert 0 <= prob <= 1
+    _, normed_prob = identifier.classify(text)
+    assert 0 <= normed_prob <= 1
+    # probability not equal to 1
+    _, normed_prob = identifier.classify('This potrebbe essere a test.')
+    normed_prob == 0.8942321
+    # not normalized
     identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=False)
     _, prob = identifier.classify(text)
     assert prob < 0
