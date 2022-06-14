@@ -3,6 +3,20 @@ History
 =======
 
 
+0.2.2
+-----
+
+* Fixed bug in probability normalization (#6)
+* Fully implemented data type argument in ``classify()``
+* Adapted training scripts to Python3 (untested)
+
+
+0.2.1
+-----
+
+* Maintenance: update and simplify code
+
+
 0.2.0
 -----
 

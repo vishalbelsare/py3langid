@@ -15,7 +15,7 @@ Changes in this fork
 Execution speed has been improved and the code base has been optimized for Python 3.6+:
 
 - Import: Loading the package (``import py3langid``) is about 30% faster
-- Startup: Loading the default classification model is 20-25x faster
+- Startup: Loading the default classification model is 25-30x faster
 - Execution: Language detection with ``langid.classify`` is 5-6x faster on paragraphs (less on longer texts)
 
 For implementation details see this blog post: `How to make language detection with langid.py faster <https://adrien.barbaresi.eu/blog/language-detection-langid-py-faster.html>`_.
@@ -50,7 +50,7 @@ Basics:
     >>> text = 'This text is in English.'
     # identified language and probability
     >>> langid.classify(text)
-    ('en', -56.77428913116455)
+    ('en', -56.77429)
     # unpack the result tuple in variables
     >>> lang, prob = langid.classify(text)
     # all potential languages
@@ -68,11 +68,11 @@ More options:
     >>> identifier.set_languages(['de', 'en', 'fr'])
     # this won't work well...
     >>> identifier.classify('这样不好')
-    ('en', -81.83166265487671)
+    ('en', -81.831665)
 
     # normalization of probabilities to an interval between 0 and 1
     >>> identifier = LanguageIdentifier.from_pickled_model(MODEL_FILE, norm_probs=True)
-    >>> identifier.classify('This should be enough text.'))
+    >>> identifier.classify('This should be enough text.')
     ('en', 1.0)
 
 
@@ -94,7 +94,7 @@ On the command-line
 
     # define a subset of target languages
     $ echo "This won't be recognized properly." | langid -n -l fr,it,tr
-    ('it', 0.9703832808613264)
+    ('it', 0.97038305)
 
 
 
