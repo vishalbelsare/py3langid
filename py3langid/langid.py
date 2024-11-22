@@ -17,6 +17,7 @@ import pickle
 
 from base64 import b64decode
 from collections import Counter
+from operator import itemgetter
 from pathlib import Path
 from urllib.parse import parse_qs
 
@@ -32,6 +33,9 @@ NORM_PROBS = False  # Normalize output probabilities.
 # NORM_PROBS defaults to False for a small speed increase. It does not
 # affect the relative ordering of the predicted classes. It can be
 # re-enabled at runtime - see the readme.
+
+# quantization: faster but less precise
+DATATYPE = "uint16"
 
 
 def load_model(path=None):
@@ -60,7 +64,7 @@ def set_languages(langs=None):
     return IDENTIFIER.set_languages(langs)
 
 
-def classify(instance, datatype='uint16'):
+def classify(instance, datatype=DATATYPE):
     """
     Convenience method using a global identifier instance with the default
     model included in langid.py. Identifies the language that a string is
@@ -198,9 +202,7 @@ class LanguageIdentifier:
         nb_ptc, nb_pc, nb_classes = self.__full_model
 
         if langs is None:
-            self.nb_classes = nb_classes
-            self.nb_ptc = nb_ptc
-            self.nb_pc = nb_pc
+            self.nb_classes, self.nb_ptc, self.nb_pc = nb_classes, nb_ptc, nb_pc
 
         else:
             # We were passed a restricted set of languages. Trim the arrays accordingly
@@ -209,12 +211,12 @@ class LanguageIdentifier:
                 if lang not in nb_classes:
                     raise ValueError(f"Unknown language code {lang}")
 
-            subset_mask = np.fromiter((l in langs for l in nb_classes), dtype=bool)
+            subset_mask = np.isin(nb_classes, langs)
             self.nb_classes = [c for c in nb_classes if c in langs]
             self.nb_ptc = nb_ptc[:, subset_mask]
             self.nb_pc = nb_pc[subset_mask]
 
-    def instance2fv(self, text, datatype='uint16'):
+    def instance2fv(self, text, datatype=DATATYPE):
         """
         Map an instance into the feature space of the trained model.
 
@@ -227,11 +229,12 @@ class LanguageIdentifier:
 
         # Convert the text to a sequence of ascii values and
         # Count the number of times we enter each state
-        state = 0
-        indexes = []
-        for letter in list(text):
+        state, indexes = 0, []
+        extend = indexes.extend
+
+        for letter in text:
             state = self.tk_nextmove[(state << 8) + letter]
-            indexes.extend(self.tk_output.get(state, []))
+            extend(self.tk_output.get(state, []))
 
         # datatype: consider that less feature counts are going to be needed
         arr = np.zeros(self.nb_numfeats, dtype=datatype)
@@ -247,7 +250,7 @@ class LanguageIdentifier:
         # compute the partial log-probability of the document in each class
         return pdc + self.nb_pc
 
-    def classify(self, text, datatype='uint16'):
+    def classify(self, text, datatype=DATATYPE):
         """
         Classify an instance.
         """
@@ -262,7 +265,7 @@ class LanguageIdentifier:
         """
         fv = self.instance2fv(text)
         probs = self.norm_probs(self.nb_classprobs(fv))
-        return [(str(k), float(v)) for (v, k) in sorted(zip(probs, self.nb_classes), reverse=True)]
+        return sorted(zip(self.nb_classes, probs), key=itemgetter(1), reverse=True)
 
     def cl_path(self, path):
         """
@@ -281,6 +284,22 @@ class LanguageIdentifier:
         return path, retval
 
 
+class NumpyEncoder(json.JSONEncoder):
+    """ Custom encoder for numpy data types """
+    def default(self, o):
+        if isinstance(o, np.float32):
+            return float(o)  # Convert float32 to native float
+        if isinstance(o, np.ndarray):
+            return o.tolist()  # Convert arrays to list
+        return json.JSONEncoder.default(self, o)
+
+
+METHODS = {
+    'detect': lambda data: {'language': classify(data)[0], 'confidence': classify(data)[1]},
+    'rank': lambda data: rank(data)
+}
+
+
 def application(environ, start_response):
     """
     WSGI-compatible langid web service.
@@ -292,61 +311,53 @@ def application(environ, start_response):
         # Catch shift_path_info's failure to handle empty paths properly
         path = ''
 
-    if path in {'detect', 'rank'}:
-        data = None
+    if path not in METHODS:
+        return _return_response(start_response, 404, None, 'Not found')
 
-        # Extract the data component from different access methods
-        if environ['REQUEST_METHOD'] == 'PUT':
-            data = environ['wsgi.input'].read(int(environ['CONTENT_LENGTH']))
-        elif environ['REQUEST_METHOD'] == 'GET':
+    data = _get_data(environ)
+    if data is None:
+        if environ['REQUEST_METHOD'] == 'GET' and 'QUERY_STRING' not in environ:
+            return _return_response(start_response, 400, None, 'Missing query string')
+        return _return_response(start_response, 405, None, f"{environ['REQUEST_METHOD']} not allowed")
+
+    response_data = METHODS[path](data)
+    return _return_response(start_response, 200, response_data, None)
+
+
+def _get_data(environ):
+    if environ['REQUEST_METHOD'] in ['PUT', 'POST']:
+        data = environ['wsgi.input'].read(int(environ['CONTENT_LENGTH']))
+        if environ['REQUEST_METHOD'] == 'POST':
             try:
-                data = parse_qs(environ['QUERY_STRING'])['q'][0]
+                data = parse_qs(data)['q'][0]
             except KeyError:
-                # No query, provide a null response.
-                status = '200 OK'  # HTTP Status
-                response = {
-                  'responseData': None,
-                  'responseStatus': 200,
-                  'responseDetails': None,
-                }
-        elif environ['REQUEST_METHOD'] == 'POST':
-            input_string = environ['wsgi.input'].read(int(environ['CONTENT_LENGTH']))
-            try:
-                data = parse_qs(input_string)['q'][0]
-            except KeyError:
-                # No key 'q', process the whole input instead
-                data = input_string
-        else:
-            # Unsupported method
-            status = '405 Method Not Allowed'  # HTTP Status
-            response = {
-                'responseData': None,
-                'responseStatus': 405,
-                'responseDetails': f"{environ['REQUEST_METHOD']} not allowed",
-            }
+                pass
+        return data
+    if environ['REQUEST_METHOD'] == 'GET':
+        try:
+            return parse_qs(environ['QUERY_STRING'])['q'][0]
+        except KeyError:
+            pass
+    return None
 
-        if data is not None:
-            if path == 'detect':
-                pred, conf = classify(data)
-                response_data = {'language': pred, 'confidence': conf}
-            elif path == 'rank':
-                response_data = rank(data)
 
-            status = '200 OK'  # HTTP Status
-            response = {
-              'responseData': response_data,
-              'responseStatus': 200,
-              'responseDetails': None,
-            }
+STATUS_MESSAGES = {
+    200: "OK",
+    404: "Not Found",
+    405: "Method Not Allowed"
+}
 
-    else:
-        # Incorrect URL
-        status = '404 Not Found'
-        response = {'responseData': None, 'responseStatus': 404, 'responseDetails': 'Not found'}
 
-    headers = [('Content-type', 'text/javascript; charset=utf-8')]  # HTTP Headers
+def _return_response(start_response, status_code, response_data, response_details):
+    status = f"{status_code} {STATUS_MESSAGES.get(status_code, 'Unknown Status')}"
+    response = {
+        'responseData': response_data,
+        'responseStatus': status_code,
+        'responseDetails': response_details,
+    }
+    headers = [('Content-type', 'text/javascript; charset=utf-8')]
     start_response(status, headers)
-    return [json.dumps(response)]
+    return [json.dumps(response, cls=NumpyEncoder).encode('utf-8')]
 
 
 def main():
@@ -426,7 +437,7 @@ def main():
         else:
             hostname = options.host
 
-        print("Listening on %s:%d" % (hostname, int(options.port)))
+        print(f"Listening on {hostname}:%{options.port}")
         print("Press Ctrl+C to exit")
         httpd = make_server(hostname, int(options.port), application)
         try:
